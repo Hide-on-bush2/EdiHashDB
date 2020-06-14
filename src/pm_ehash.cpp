@@ -23,7 +23,15 @@ PmEHash::~PmEHash() {
  * @return: 0 = insert successfully, -1 = fail to insert(target data with same key exist)
  */
 int PmEHash::insert(kv new_kv_pair) {
-    return 1;
+    if (search(new_kv_pair.key, new_kv_pair.value) == 0) {
+        return -1;
+    }
+        
+    pm_bucket* bucket = getFreeBucket(new_kv_pair.key);
+    kv* freePlace = getFreeKvSlot(bucket);
+    *freePlace = new_kv_pair;
+    persit(freePlace);
+    return 0;
 }
 
 /**
@@ -40,7 +48,7 @@ int PmEHash::remove(uint64_t key) {
  * @return: 0 = update successfully, -1 = fail to update(target data doesn't exist)
  */
 int PmEHash::update(kv kv_pair) {
-    return 1;
+    return 0;
 }
 /**
  * @description: 查找目标键值对数据，将返回值放在参数里的引用类型进行返回
@@ -49,8 +57,10 @@ int PmEHash::update(kv kv_pair) {
  * @return: 0 = search successfully, -1 = fail to search(target data doesn't exist) 
  */
 int PmEHash::search(uint64_t key, uint64_t& return_val) {
-    return 1;
+    return 0;
 }
+<<<<<<< HEAD
+jjjsdcsdcjjasdasd
 
 /**
  * @description: 用于对输入的键产生哈希值，然后取模求桶号(自己挑选合适的哈希函数处理)
@@ -58,7 +68,7 @@ int PmEHash::search(uint64_t key, uint64_t& return_val) {
  * @return: 返回键所属的桶号
  */
 uint64_t PmEHash::hashFunc(uint64_t key) {
-
+    free_list.size();
 }
 
 /**
@@ -121,7 +131,11 @@ void* PmEHash::getFreeSlot(pm_address& new_address) {
  * @return: NULL
  */
 void PmEHash::allocNewPage() {
-
+    auto p_datapage = new data_page();
+    vector<slot> free_slot = p_datapage->get_free_slots();
+    for(int i=0;i < num;i++){
+        free_list.append(address + i*len);
+    }
 }
 
 /**
@@ -139,7 +153,7 @@ void PmEHash::recover() {
  * @return: NULL
  */
 void PmEHash::mapAllPage() {
-
+    
 }
 
 /**
