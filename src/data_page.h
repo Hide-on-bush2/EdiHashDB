@@ -1,11 +1,7 @@
-#ifndef _PM_E_HASH_H
-#define _PM_E_HASH_H
+#ifndef DATA_PAGE
+#define DATA_PAGE
 
-#include<cstdint>
-#include<queue>
-#include<map>
-#include"data_page.h"
-
+#define DATA_PAGE_SLOT_NUM 16
 #define BUCKET_SLOT_NUM               15
 #define DEFAULT_CATALOG_SIZE      16
 #define META_NAME                                "pm_ehash_metadata";
@@ -16,7 +12,7 @@
 using std::queue;
 using std::map;
 
-/* 
+/*
 ---the physical address of data in NVM---
 fileId: 1-N, the data page name
 offset: data offset in the file
@@ -52,7 +48,7 @@ typedef struct pm_bucket
 typedef struct ehash_catalog
 {
     pm_address* buckets_pm_address;         // pm address array of buckets
-    pm_bucket*  buckets_virtual_address;    // virtual address array mapped by pmem_map
+    pm_bucket* buckets_virtual_address;    // virtual address array mapped by pmem_map
 } ehash_catalog;
 
 typedef struct ehash_metadata
@@ -61,45 +57,25 @@ typedef struct ehash_metadata
     uint64_t catalog_size;     // the catalog size of catalog file(amount of data entry)
     uint64_t global_depth;   // global depth of PmEHash
 } ehash_metadata;
+// use pm_address to locate the data in the page
 
-class PmEHash
-{
-private:
-    
-    ehash_metadata*                               metadata;                    // virtual address of metadata, mapping the metadata file
-    ehash_catalog                                      catalog;                        // the catalog of hash
+// uncompressed page format design to store the buckets of PmEHash
+// one slot stores one bucket of PmEHash
+typedef struct data_page {
+    // fixed-size record design
+    // uncompressed page format
+    //一个数据页面要定义页面号， 记录哪些槽可以用，哪些槽不能用的位图，以及存放数据的槽
+    //和那个示意图是一样的
+    pm_bucket buckets[DATA_PAGE_SLOT_NUM];
+    bool bit_map[DATA_PAGE_SLOT_NUM];
+    int page_id;
 
-    queue<pm_bucket*>                         free_list;                      //all free slots in data pages to store buckets
-    map<pm_bucket*, pm_address> vAddr2pmAddr;       // map virtual address to pm_address, used to find specific pm_address
-    map<pm_address, pm_bucket*> pmAddr2vAddr;       // map pm_address to virtual address, used to find specific virtual address
-    
-    uint64_t hashFunc(uint64_t key);
+    struct datapage() {
+        memset(bit_map, 0, sizeof(bit_map));
+    }
+} data_page;
 
-    pm_bucket* getFreeBucket(uint64_t key);
-    pm_bucket* getNewBucket();
-    void freeEmptyBucket(pm_bucket* bucket);
-    kv* getFreeKvSlot(pm_bucket* bucket);
+bool is_full(const bool bit_map[], int size);           //判断任意一个bit_map里是否有可用的位置
 
-    void splitBucket(uint64_t bucket_id);
-    void mergeBucket(uint64_t bucket_id);
-
-    void extendCatalog();
-    void* getFreeSlot(pm_address& new_address);
-    void allocNewPage();
-
-    void recover();
-    void mapAllPage();
-
-public:
-    PmEHash();
-    ~PmEHash();
-
-    int insert(kv new_kv_pair);
-    int remove(uint64_t key);
-    int update(kv kv_pair);
-    int search(uint64_t key, uint64_t& return_val);
-
-    void selfDestory();
-};
-
+std::vector<data_page*>  page_record;
 #endif
