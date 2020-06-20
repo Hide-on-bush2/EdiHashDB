@@ -37,8 +37,7 @@ typedef struct kv
 
 typedef struct pm_bucket
 {
-    uint64_t local_depth;
-    uint8_t  bitmap[BUCKET_SLOT_NUM / 8 + 1];      // one bit for each slot
+    bool  bitmap[BUCKET_SLOT_NUM];      // one bit for each slot
     kv       slot[BUCKET_SLOT_NUM];                                // one slot for one kv-pair
 } pm_bucket;
 
@@ -47,6 +46,10 @@ typedef struct pm_bucket
 // buckets_virtual_address: store virtual address of bucket that each buckets_pm_address points to
 typedef struct ehash_catalog
 {
+    int len;                                //length of catalog
+    int maxLen;
+    int* local_depth;  
+    uint64_t* tag;
     pm_address* buckets_pm_address;         // pm address array of buckets
     pm_bucket** buckets_virtual_address;    // virtual address of buckets that buckets_pm_address point to
 } ehash_catalog;
@@ -69,7 +72,7 @@ private:
     map<pm_bucket*, pm_address> vAddr2pmAddr;       // map virtual address to pm_address, used to find specific pm_address
     map<pm_address, pm_bucket*> pmAddr2vAddr;       // map pm_address to virtual address, used to find specific virtual address
     
-    uint64_t hashFunc(uint64_t key);
+    pm_bucket* hashFunc(uint64_t key);
 
     pm_bucket* getFreeBucket(uint64_t key);
     pm_bucket* getNewBucket();
@@ -98,4 +101,4 @@ public:
     void selfDestory();
 };
 
-#endif
+#endif-

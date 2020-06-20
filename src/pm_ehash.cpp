@@ -1,40 +1,31 @@
 #include"../include/pm_ehash.h"
+#include <assert.h> 
+using std::assert;
+ehash_catalog* pmem_catalog;
 
-bool is_full(const bool bit_map[], int size) {
-    for (i = 0; i < size; i++) {
-        if (bit_map[i] == 0) {
-            return false;
-        }
-    }
+// bool is_full(const bool bit_map[], int size) {
+//     for (int i = 0; i < size; i++) {
+//         if (bit_map[i] == 0) {
+//             return false;
+//         }
+//     }
 
-    return true;
-}
+//     return true;
+// }
 
-uint64_t get_page_id(uint64_t bucket_id) {
-    uint_64 page_id;
+// uint64_t get_page_id(uint64_t bucket_id) {
+//     uint_64 page_id;
 
-    return page_id;
-}
+//     return page_id;
+// }
 
-uint64_t get_bucket_offset(uint64_t bucket_id) {
-    uint_64 bucket_offset;
+// uint64_t get_bucket_offset(uint64_t bucket_id) {
+//     uint_64 bucket_offset;
 
-    return bucket_offset;
-}
+//     return bucket_offset;
+// }
 
-pm_bucket* get_bucket_head_address(uint64_t key) {        //得到一个键值要插入的目标桶的首地址
-    uint64_t bucket_id = hashFunc(key);
-    uint64_t page_id = get_page_id(bucket_id);
-    uint64_t bucket_offset = get_bucket_offset(bucket_id);
 
-    for (auto itor = page_record.begin(); itor != page_record.end(); itor++) {
-        if (*itor->page_id == page_id) {
-            return &(*itor->buckets[bucket_offset]);
-        }
-    }
-
-    return NULL;
-}
 
 /**
  * @description: construct a new instance of PmEHash in a default directory
@@ -59,19 +50,20 @@ PmEHash::~PmEHash() {
  * @return: 0 = insert successfully, -1 = fail to insert(target data with same key exist)
  */
 int PmEHash::insert(kv new_kv_pair) {
-    int result;
+    uint64_t result;
     if (search(new_kv_pair.key, result) == 0) {
         return -1;
     }
 
-    pm_bucket* tar_bucket = getFreeBucket(new_kv_pair.key);
-    if (tar_bucket == NULL) return -1;
+    pm_bucket* new_bucket = getFreeBucket(new_kv_pair.key);
+    assert(new_bucket != NULL);
 
-    kv* tar_kv = getFreeKvSlot(tar_bucket);
-    if (tar_kv == NULL) return -1;
+    kv* tar_kv = getFreeKvSlot(new_bucket);
+    assert(tar_kv!=NULL);
 
     tar_kv->key = new_kv_pair.key;
     tar_kv->value = new_kv_pair.value;
+
 
     return 0;
 }
@@ -123,16 +115,15 @@ int PmEHash::update(kv kv_pair) {
  * @return: 0 = search successfully, -1 = fail to search(target data doesn't exist) 
  */
 int PmEHash::search(uint64_t key, uint64_t& return_val) {
-    pm_bucket* tar_bucket = get_bucket_head_address(key);                //先找到这个key所在的桶的地址，然后遍历桶所有的kv对
+    pm_bucket* tar_bucket = hashFunc(key);                //先找到这个key所在的桶的地址，然后遍历桶所有的kv对
 
-    while (tar_bucket != NULL) {
-        for (int i = 0; i < BUCKET_SLOT_NUM; i++) {
-            if (tar_bucket->bitmap[i] && tar_bucket->slot[i].key == key) {
-                return_val = tar_bucket->slot[i].value;
-                return 0;
-            }
+    assert(tar_bucket!=NULL);
+
+    for (int i = 0; i < BUCKET_SLOT_NUM; i++) {
+        if (tar_bucket->bitmap[i] && tar_bucket->slot[i].key == key) {
+            return_val = tar_bucket->slot[i].value;
+            return 0;
         }
-        tar_bucket = tar_bucket->next;
     }
     
     return -1;
@@ -141,12 +132,16 @@ int PmEHash::search(uint64_t key, uint64_t& return_val) {
 /**
  * @description: 用于对输入的键产生哈希值，然后取模求桶号(自己挑选合适的哈希函数处理)
  * @param uint64_t: 输入的键
- * @return: 返回键所属的桶号
+ * @return: 返回键所属的桶的地址
  */
-uint64_t PmEHash::hashFunc(uint64_t key) {
-    uint64_t bucket_id;
-    bucket_id = key % (BUCKET_SLOT_NUM);
-    return bucket_id;
+pm_bucket* PmEHash::hashFunc(uint64_t key) {
+    for(int i = 0; i < pmem_catalog->len; i++) {
+        if ((key & ((1 << pmem_catalog->local_depth[i]) - 1))==pmem_catalog->tag[i]) 
+            return pmem_catalog->buckets_virtual_address[i];
+    }
+
+    return NULL;
+    
 }
 
 /**
@@ -155,19 +150,13 @@ uint64_t PmEHash::hashFunc(uint64_t key) {
  * @return: 空闲桶的虚拟地址
  */
 pm_bucket* PmEHash::getFreeBucket(uint64_t key) {
-    pm_bucket* tar_bucket = get_bucket_head_address(key);
 
-    if (tar_bucket != NULL) {
-        while (currentPtr->next != NULL) {
-            currentPtr = currentPtr->next;                          //假如这个桶已经分裂过，找到这个桶的最后一个分裂桶
-        }
+    pm_bucket* insert_bucket=hashFunc(key);
+    assert(insert_bucket != NULL);
+    kv *insert_kv=getFreeKvSlot(insert_bucket);
+    if (insert_kv!=NULL) return insert_bucket;
 
-        if (is_full(currentPtr->bitmap, BUCKET_SLOT_NUM)) {
-            splitBucket(bucket_id);
-            currentPtr = currentPtr->next;
-        }
-        return currentPtr;                     
-    }
+    
 
     allocNewPage();                                                   //执行到了这一步说明没有找到对应的页，因此要重新分配
     data_page* tempPtr = page_record.back();
@@ -182,7 +171,7 @@ pm_bucket* PmEHash::getFreeBucket(uint64_t key) {
  * @return: 空闲键值对位置的虚拟地址
  */
 kv* PmEHash::getFreeKvSlot(pm_bucket* bucket) {
-    for (int i = 0; i <= BUCKET_SLOT_NUM; i++) {
+    for (int i = 0; i < BUCKET_SLOT_NUM; i++) {
         if (bucket->bitmap[i] == 0) {
             bucket->bitmap[i] = 1;                                  //分配这个位置
             return &(bucket->slot[i]);
@@ -230,7 +219,7 @@ void PmEHash::mergeBucket(uint64_t bucket_id) {
  * @return: NULL
  */
 void PmEHash::extendCatalog() {
-
+    // * new_page = (data_page*)pmem_map_file((PERSIST_PATH+to_string(id)).c_str(), sizeof(data_page), PMEM_FILE_CREATE, 0777, &map_len, &is_pmem);
 }
 
 /**

@@ -18,9 +18,6 @@
 using namespace std;
 // 数据页表的相关操作实现都放在这个源文件下，如PmEHash申请新的数据页和删除数据页的底层实现
 
-string int2str(int id){
-
-}
 
 data_page* create_new_page(int id){
 	size_t map_len;
@@ -38,6 +35,7 @@ data_page* create_new_page(int id){
 	printf("is_pmem:%d\n", is_pmem);
     pmem_persist(new_page, map_len);
     pmem_unmap(new_page, map_len);
+    // printf("Page id%d\n", new_page);
 
     data_page* old_page = (data_page*)pmem_map_file((PERSIST_PATH+to_string(id)).c_str(), sizeof(data_page), PMEM_FILE_CREATE, 0777, &map_len, &is_pmem);
     printf("page id: %d\n", old_page->page_id);
@@ -49,11 +47,13 @@ data_page* create_new_page(int id){
 /*
  @删除持久内存某一页
  */
-void delete_page(int id) {
+bool delete_page(int id) {
     if(remove((PERSIST_PATH + to_string(id)).c_str())==0){
     	printf("delete success\n");
+    	return true;
     }
     else{
     	printf("delete failure\n");
+    	return false;
     }
 }

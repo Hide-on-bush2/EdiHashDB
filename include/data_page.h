@@ -16,16 +16,6 @@
 // using std::queue;
 // using std::map;
 
-/*
----the physical address of data in NVM---
-fileId: 1-N, the data page name
-offset: data offset in the file
-*/
-struct pm_address
-{
-    uint32_t fileId;
-    uint32_t offset;
-};
 
 /*
 the data entry stored by the  ehash
@@ -63,9 +53,9 @@ struct data_page{
 };
 
 data_page* create_new_page(int id);
-void delete_page(int id);
-void init_page_from_file();
-void write_page_to_file();
+bool delete_page(int id);
+// void init_page_from_file();
+// void write_page_to_file();
 
 
-#endif
+#endif]
