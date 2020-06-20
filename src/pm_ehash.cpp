@@ -1,4 +1,4 @@
-#include"pm_ehash.h"
+#include "../include/pm_ehash.h"
 
 bool is_full(const bool bit_map[], int size) {
     for (i = 0; i < size; i++) {
@@ -11,13 +11,17 @@ bool is_full(const bool bit_map[], int size) {
 }
 
 uint64_t get_page_id(uint64_t bucket_id) {
-    uint_64 page_id;
+    uint64_t page_id;
+
+    pate_id = 1;
 
     return page_id;
 }
 
 uint64_t get_bucket_offset(uint64_t bucket_id) {
-    uint_64 bucket_offset;
+    uint64_t bucket_offset;
+
+    bucket_offset = 1;
 
     return bucket_offset;
 }
@@ -146,8 +150,6 @@ int PmEHash::search(uint64_t key, uint64_t& return_val) {
 uint64_t PmEHash::hashFunc(uint64_t key) {
     uint64_t bucket_id;
 
-    
-
     return bucket_id;
 }
 
@@ -259,7 +261,7 @@ void PmEHash::allocNewPage() {
  * @return: NULL
  */
 void PmEHash::recover() {
-
+    init_page_from_file();
 }
 
 /**
@@ -268,7 +270,7 @@ void PmEHash::recover() {
  * @return: NULL
  */
 void PmEHash::mapAllPage() {
-
+    
 }
 
 /**
@@ -277,5 +279,7 @@ void PmEHash::mapAllPage() {
  * @return: NULL
  */
 void PmEHash::selfDestory() {
-
+    for (auto itor = page_record.begin(); itor != page_record.end(); itor++) {
+        delete_page(*itor->page_id);
+    }
 }
