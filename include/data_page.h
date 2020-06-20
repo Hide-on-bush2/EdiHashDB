@@ -11,6 +11,7 @@
 #define CATALOG_NAME                        "pm_ehash_catalog";
 #define PM_EHASH_DIRECTORY        "";        // add your own directory path to store the pm_ehash
 #define MAX_PAGE_NUM             1000        //定义最大的页面数为1000
+#define PERSIST_PATH             "/mnt/pmemdir/data/"
 
 // using std::queue;
 // using std::map;
@@ -38,16 +39,16 @@ struct KV
 struct Bucket{
     bool bitmap[BUCKET_SLOT_NUM];
     KV kvs[BUCKET_SLOT_NUM];
-    // Bucket(){
-    //     memset(bitmap, 0, sizeof(bitmap));
-    // }
+    Bucket(){
+        memset(bitmap, 0, sizeof(bitmap));
+    }
 };
 
 // use pm_address to locate the data in the page
 
 // uncompressed page format design to store the buckets of PmEHash
 // one slot stores one bucket of PmEHash
-struct data_page {
+struct data_page{
     // fixed-size record design
     // uncompressed page format
     //一个数据页面要定义页面号， 记录哪些槽可以用，哪些槽不能用的位图，以及存放数据的槽
@@ -56,11 +57,15 @@ struct data_page {
     bool bit_map[DATA_PAGE_SLOT_NUM];
     int page_id;
 
-    // data_page(){
-    //     memset(bit_map, 0, sizeof(bit_map));
-    // }
+    data_page(){
+        memset(bit_map, 0, sizeof(bit_map));
+    }
 };
 
 data_page* create_new_page(int id);
+void delete_page(int id);
+void init_page_from_file();
+void write_page_to_file();
+
 
 #endif
