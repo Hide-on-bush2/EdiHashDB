@@ -1,3 +1,6 @@
+
+#include<stdint.h>
+#include<memory.h>
 #ifndef DATA_PAGE
 #define DATA_PAGE
 
@@ -7,73 +10,57 @@
 #define META_NAME                                "pm_ehash_metadata";
 #define CATALOG_NAME                        "pm_ehash_catalog";
 #define PM_EHASH_DIRECTORY        "";        // add your own directory path to store the pm_ehash
-#define MAX_PAGE_NUM             1000        //¶¨Òå×î´óµÄÒ³ÃæÊıÎª1000
+#define MAX_PAGE_NUM             1000        //å®šä¹‰æœ€å¤§çš„é¡µé¢æ•°ä¸º1000
 
-using std::queue;
-using std::map;
+// using std::queue;
+// using std::map;
 
 /*
 ---the physical address of data in NVM---
 fileId: 1-N, the data page name
 offset: data offset in the file
 */
-typedef struct pm_address
+struct pm_address
 {
     uint32_t fileId;
     uint32_t offset;
-} pm_address;
+};
 
 /*
 the data entry stored by the  ehash
 */
-typedef struct kv
+struct KV
 {
     uint64_t key;
     uint64_t value;
-} kv;
+};
 
-typedef struct pm_bucket
-{
-    uint64_t local_depth;
-    uint8_t  bitmap[BUCKET_SLOT_NUM];
-    //uint8_t  bitmap[BUCKET_SLOT_NUM / 8 + 1];      // one bit for each slot
-    kv       slot[BUCKET_SLOT_NUM];                                // one slot for one kv-pair
-    struct pm_bucket* next;
+struct Bucket{
+    bool bitmap[BUCKET_SLOT_NUM];
+    KV kvs[BUCKET_SLOT_NUM];
+    // Bucket(){
+    //     memset(bitmap, 0, sizeof(bitmap));
+    // }
+};
 
-    struct pm_bucket() : next(NULL) {
-        memset(bitmap, 0, sizeof(bitmap));
-    }
-} pm_bucket;
-
-typedef struct ehash_catalog
-{
-    pm_address* buckets_pm_address;         // pm address array of buckets
-    pm_bucket* buckets_virtual_address;    // virtual address array mapped by pmem_map
-} ehash_catalog;
-
-typedef struct ehash_metadata
-{
-    uint64_t max_file_id;      // next file id that can be allocated
-    uint64_t catalog_size;     // the catalog size of catalog file(amount of data entry)
-    uint64_t global_depth;   // global depth of PmEHash
-} ehash_metadata;
 // use pm_address to locate the data in the page
 
 // uncompressed page format design to store the buckets of PmEHash
 // one slot stores one bucket of PmEHash
-typedef struct data_page {
+struct data_page {
     // fixed-size record design
     // uncompressed page format
-    //Ò»¸öÊı¾İÒ³ÃæÒª¶¨ÒåÒ³ÃæºÅ£¬ ¼ÇÂ¼ÄÄĞ©²Û¿ÉÒÔÓÃ£¬ÄÄĞ©²Û²»ÄÜÓÃµÄÎ»Í¼£¬ÒÔ¼°´æ·ÅÊı¾İµÄ²Û
-    //ºÍÄÇ¸öÊ¾ÒâÍ¼ÊÇÒ»ÑùµÄ
-    pm_bucket buckets[DATA_PAGE_SLOT_NUM];
+    //ä¸€ä¸ªæ•°æ®é¡µé¢è¦å®šä¹‰é¡µé¢å·ï¼Œ è®°å½•å“ªäº›æ§½å¯ä»¥ç”¨ï¼Œå“ªäº›æ§½ä¸èƒ½ç”¨çš„ä½å›¾ï¼Œä»¥åŠå­˜æ”¾æ•°æ®çš„æ§½
+    //å’Œé‚£ä¸ªç¤ºæ„å›¾æ˜¯ä¸€æ ·çš„
+    Bucket buckets[DATA_PAGE_SLOT_NUM];
     bool bit_map[DATA_PAGE_SLOT_NUM];
     int page_id;
 
-    struct datapage() {
-        memset(bit_map, 0, sizeof(bit_map));
-    }
-} data_page;
+    // data_page(){
+    //     memset(bit_map, 0, sizeof(bit_map));
+    // }
+};
 
-std::vector<data_page*>  page_record;
+data_page* create_new_page(int id);
+
 #endif

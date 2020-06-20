@@ -1,4 +1,4 @@
-#include"pm_ehash.h"
+#include"../include/pm_ehash.h"
 
 bool is_full(const bool bit_map[], int size) {
     for (i = 0; i < size; i++) {
@@ -145,7 +145,7 @@ int PmEHash::search(uint64_t key, uint64_t& return_val) {
  */
 uint64_t PmEHash::hashFunc(uint64_t key) {
     uint64_t bucket_id;
-
+    bucket_id = key % (BUCKET_SLOT_NUM);
     return bucket_id;
 }
 
