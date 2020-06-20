@@ -11,7 +11,7 @@
 #define META_NAME                                "pm_ehash_metadata";
 #define CATALOG_NAME                        "pm_ehash_catalog";
 #define PM_EHASH_DIRECTORY        "";        // add your own directory path to store the pm_ehash
-#define MAX_PAGE_NUM             1000        //定义最大的页面数为1000
+#define MAX_PAGE_NUM             1000        //瀹氫箟鏈�澶х殑椤甸潰鏁颁负1000
 
 using std::queue;
 using std::map;

@@ -7,7 +7,7 @@
 #define META_NAME                                "pm_ehash_metadata";
 #define CATALOG_NAME                        "pm_ehash_catalog";
 #define PM_EHASH_DIRECTORY        "";        // add your own directory path to store the pm_ehash
-#define MAX_PAGE_NUM             1000        //¶¨Òå×î´óµÄÒ³ÃæÊıÎª1000
+#define MAX_PAGE_NUM             1000        //å®šä¹‰æœ€å¤§çš„é¡µé¢æ•°ä¸º1000
 
 using std::queue;
 using std::map;
@@ -64,8 +64,8 @@ typedef struct ehash_metadata
 typedef struct data_page {
     // fixed-size record design
     // uncompressed page format
-    //Ò»¸öÊı¾İÒ³ÃæÒª¶¨ÒåÒ³ÃæºÅ£¬ ¼ÇÂ¼ÄÄĞ©²Û¿ÉÒÔÓÃ£¬ÄÄĞ©²Û²»ÄÜÓÃµÄÎ»Í¼£¬ÒÔ¼°´æ·ÅÊı¾İµÄ²Û
-    //ºÍÄÇ¸öÊ¾ÒâÍ¼ÊÇÒ»ÑùµÄ
+    //ä¸€ä¸ªæ•°æ®é¡µé¢è¦å®šä¹‰é¡µé¢å·ï¼Œ è®°å½•å“ªäº›æ§½å¯ä»¥ç”¨ï¼Œå“ªäº›æ§½ä¸èƒ½ç”¨çš„ä½å›¾ï¼Œä»¥åŠå­˜æ”¾æ•°æ®çš„æ§½
+    //å’Œé‚£ä¸ªç¤ºæ„å›¾æ˜¯ä¸€æ ·çš„
     pm_bucket buckets[DATA_PAGE_SLOT_NUM];
     bool bit_map[DATA_PAGE_SLOT_NUM];
     int page_id;
@@ -74,6 +74,8 @@ typedef struct data_page {
         memset(bit_map, 0, sizeof(bit_map));
     }
 } data_page;
+
+bool is_full(const bool bit_map[], int size);           //åˆ¤æ–­ä»»æ„ä¸€ä¸ªbit_mapé‡Œæ˜¯å¦æœ‰å¯ç”¨çš„ä½ç½®
 
 std::vector<data_page*>  page_record;
 #endif
