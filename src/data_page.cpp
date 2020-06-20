@@ -57,3 +57,4 @@ bool delete_page(int id) {
     	return false;
     }
 }
+
