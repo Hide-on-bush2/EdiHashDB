@@ -4,10 +4,62 @@
 #include<cstdint>
 #include<queue>
 #include<map>
-#include"../include/data_page.h"
+#include"data_page.h"
+
+#define BUCKET_SLOT_NUM               15
+#define DEFAULT_CATALOG_SIZE      16
+#define META_NAME                                "pm_ehash_metadata";
+#define CATALOG_NAME                        "pm_ehash_catalog";
+#define PM_EHASH_DIRECTORY        "";        // add your own directory path to store the pm_ehash
 
 using std::queue;
 using std::map;
+
+/* 
+---the physical address of data in NVM---
+fileId: 1-N, the data page name
+offset: data offset in the file
+*/
+typedef struct pm_address
+{
+    uint32_t fileId;
+    uint32_t offset;
+} pm_address;
+
+/*
+the data entry stored by the  ehash
+*/
+typedef struct kv
+{
+    uint64_t key;
+    uint64_t value;
+} kv;
+
+typedef struct pm_bucket
+{
+    bool  bitmap[BUCKET_SLOT_NUM];      // one bit for each slot
+    kv       slot[BUCKET_SLOT_NUM];                                // one slot for one kv-pair
+} pm_bucket;
+
+// in ehash_catalog, the virtual address of buckets_pm_address[n] is stored in buckets_virtual_address
+// buckets_pm_address: open catalog file and store the virtual address of file
+// buckets_virtual_address: store virtual address of bucket that each buckets_pm_address points to
+typedef struct ehash_catalog
+{
+    int len;                                //length of catalog
+    int maxLen;
+    int* local_depth;  
+    uint64_t* tag;
+    pm_address* buckets_pm_address;         // pm address array of buckets
+    pm_bucket** buckets_virtual_address;    // virtual address of buckets that buckets_pm_address point to
+} ehash_catalog;
+
+typedef struct ehash_metadata
+{
+    uint64_t max_file_id;      // next file id that can be allocated
+    uint64_t catalog_size;     // the catalog size of catalog file(amount of data entry)
+    uint64_t global_depth;   // global depth of PmEHash
+} ehash_metadata;
 
 class PmEHash
 {
@@ -20,18 +72,14 @@ private:
     map<pm_bucket*, pm_address> vAddr2pmAddr;       // map virtual address to pm_address, used to find specific pm_address
     map<pm_address, pm_bucket*> pmAddr2vAddr;       // map pm_address to virtual address, used to find specific virtual address
     
-    uint64_t hashFunc(uint64_t key);
-    pm_bucket* get_bucket_head_address(uint64_t key);
-    uint64_t get_bucket_offset(uint64_t bucket_id);
-    uint64_t get_page_id(uint64_t bucket_id);
-    bool is_full(const uint8_t bit_map[], int size);
+    int hashFunc(uint64_t key);
 
     pm_bucket* getFreeBucket(uint64_t key);
     pm_bucket* getNewBucket();
     void freeEmptyBucket(pm_bucket* bucket);
     kv* getFreeKvSlot(pm_bucket* bucket);
 
-    void splitBucket(uint64_t bucket_id);
+    int splitBucket(uint64_t bucket_id);
     void mergeBucket(uint64_t bucket_id);
 
     void extendCatalog();
@@ -53,4 +101,4 @@ public:
     void selfDestory();
 };
 
-#endif
+#endif-

@@ -1,4 +1,3 @@
-#include"../include/pm_ehash.h"
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
@@ -11,33 +10,31 @@
 #include <cstdlib>
 #include"../include/data_page.h"
 #include<libpmem.h>
+#include<stdint.h>
 #include<stdio.h>
-#include <iostream>
-#include <cstdio>
-#include <string>
-using namespace std;
+#include<string>
+#include<iostream>
 
+using namespace std;
 // 数据页表的相关操作实现都放在这个源文件下，如PmEHash申请新的数据页和删除数据页的底层实现
 
 data_page* create_new_page(int id){
     auto name = std::string(PERSIST_PATH) + to_string(id);
 	size_t map_len;
     int is_pmem;
-    printf("1");
+    printf("%s\n", name.c_str());
 	data_page* new_page = (data_page*)pmem_map_file(name.c_str(), sizeof(data_page), PMEM_FILE_CREATE, 0777, &map_len, &is_pmem);
-	new_page->page_id = 1;
-	printf("2");
+	new_page->page_id = id;
 
 	printf("is_pmem:%d\n", is_pmem);
     pmem_persist(new_page, map_len);
     pmem_unmap(new_page, map_len);
-    printf("3");
+    // printf("Page id%d\n", new_page);
 
     data_page* old_page = (data_page*)pmem_map_file(name.c_str(), sizeof(data_page), PMEM_FILE_CREATE, 0777, &map_len, &is_pmem);
     printf("page id: %d\n", old_page->page_id);
-	return new_page;
+	return old_page;
 }
-
 
 /*
  @*程序开始运行时，将所有在持久化内存中的数据读入
@@ -71,7 +68,17 @@ void write_page_to_file() {
 /*
  @删除持久内存某一页
  */
-void delete_page(int id) {
+/*
+ @删除持久内存某一页
+ */
+bool delete_page(int id) {
     auto name = std::string(PERSIST_PATH) + to_string(id);
-    remove(name.c_str());
+    if(remove(name.c_str())==0){
+    	printf("delete success\n");
+    	return true;
+    }
+    else{
+    	printf("delete failure\n");
+    	return false;
+    }
 }
