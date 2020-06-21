@@ -1,6 +1,7 @@
 #include"../include/pm_ehash.h"
+#include<algorithm>
 
-ehash_catalog* pmem_catalog;
+using std::swap;
 
 // bool is_full(const bool bit_map[], int size) {
 //     for (int i = 0; i < size; i++) {
@@ -44,7 +45,7 @@ ehash_catalog* pmem_catalog;
  * @return: new instance of PmEHash
  */
 PmEHash::PmEHash() {
-
+    //!!!需要初始化metadata全局深度为4  所有桶局部深度也要初始化为4
 }
 /**
  * @description: persist and munmap all data in NVM
@@ -70,11 +71,11 @@ int PmEHash::insert(kv new_kv_pair) {
     assert(new_bucket != NULL);
 
     kv* tar_kv = getFreeKvSlot(new_bucket);
-    assert(tar_kv!=NULL);
+    assert(tar_kv != NULL);
 
     tar_kv->key = new_kv_pair.key;
     tar_kv->value = new_kv_pair.value;
-
+    //persit(tar_kv);//!!!需要补充持久化的操作
 
     return 0;
 }
@@ -85,20 +86,23 @@ int PmEHash::insert(kv new_kv_pair) {
  * @return: 0 = removing successfully, -1 = fail to remove(target data doesn't exist)
  */
 int PmEHash::remove(uint64_t key) {
-    pm_bucket* tar_bucket = get_bucket_head_address(key);             //先找到这个key所在的桶的地址，然后遍历桶所有的kv对
+    int bucketid = hashFunc(key);//先找到这个key所在的桶的地址，然后遍历桶所有的kv对
+             
+    pm_bucket* tar_bucket=catalog->buckets_virtual_address[bucketid];
 
-    while (tar_bucket != NULL) {
-        for (int i = 0; i < BUCKET_SLOT_NUM; i++) {
-            if (tar_bucket->slot[i].key == key) {
-                tar_bucket->bitmap[i] = 0;
-                return 0;
-            }
+    bool succ=0;
+    for (int i = 0; i < BUCKET_SLOT_NUM; i++) {
+        if (tar_bucket->bitmap[i] && tar_bucket->slot[i].key == key) {
+            tar_bucket->bitmap[i]=0;
+            //persist//!!!需要补充持久化操作
+            succ=1;
+            break;
         }
+    }   
 
-        tar_bucket = tar_bucket->next;
-    }
-    
-    return -1;
+    if (isBucketFull(bucketid)) mergeBucket(bucketid);
+
+    if (succ) return 0;else return -1;
 }
 /**
  * @description: 更新现存的键值对的值
@@ -106,15 +110,16 @@ int PmEHash::remove(uint64_t key) {
  * @return: 0 = update successfully, -1 = fail to update(target data doesn't exist)
  */
 int PmEHash::update(kv kv_pair) {
-    pm_bucket* tar_bucket = get_bucket_head_address(kv_pair.key);            //先找到这个key所在的桶的地址，然后遍历桶所有的kv对
-    while (tar_bucket != NULL) {
-        for (int i = 0; i < BUCKET_SLOT_NUM; i++) {
-            if (tar_bucket->bitmap[i] && tar_bucket->slot[i].key == kv_pair.key) {
-                tar_bucket->slot[i].value = kv_pair.value;
-                return 0;
-            }
+    int bucketid = hashFunc(kv_pair.key);//先找到这个key所在的桶的地址，然后遍历桶所有的kv对
+            
+    pm_bucket* tar_bucket=catalog->buckets_virtual_address[bucketid];
+
+    for (int i = 0; i < BUCKET_SLOT_NUM; i++) {
+        if (tar_bucket->bitmap[i] && tar_bucket->slot[i].key == kv_pair.key) {
+            tar_bucket->slot[i].value=kv_pair.value;
+            //persist//!!!需要补充持久化操作
+            return 0;
         }
-        tar_bucket = tar_bucket->next;
     }
     
     return -1;
@@ -127,8 +132,8 @@ int PmEHash::update(kv kv_pair) {
  */
 int PmEHash::search(uint64_t key, uint64_t& return_val) {
     int bucketid = hashFunc(key);//先找到这个key所在的桶的地址，然后遍历桶所有的kv对
-    assert(bucketid != -1);              
-    pm_bucket* tar_bucket=pmem_catalog->buckets_virtual_address[bucketid];
+       
+    pm_bucket* tar_bucket=catalog->buckets_virtual_address[bucketid];
 
     for (int i = 0; i < BUCKET_SLOT_NUM; i++) {
         if (tar_bucket->bitmap[i] && tar_bucket->slot[i].key == key) {
@@ -146,35 +151,40 @@ int PmEHash::search(uint64_t key, uint64_t& return_val) {
  * @return: 返回键所属的桶在目录中的编号
  */
 int PmEHash::hashFunc(uint64_t key) {
-    for(int i = 0; i < pmem_catalog->len; i++) {
-        if ((key & ((1 << pmem_catalog->local_depth[i]) - 1))==pmem_catalog->tag[i]) 
-            return i;
-    }
+    key=((key<<16)%998244353)*((key+1)%1000000007)*(key>>32)*(key<<32)^key;//足够复杂的hash函数使得对于偏斜的key输入，hash后使其均匀
 
-    return -1;
-    
+    return key&((1<<metadata->global_depth)-1);//返回桶号    
 }
 
 /**
- * @description: 获得供插入的空闲的桶，无空闲桶则先分裂桶然后再返回空闲的桶
+ * @description: 获得供插入的空闲的桶，无空闲桶则先分裂桶然后再返回空闲的桶(可能会触发连续分裂)
  * @param uint64_t: 带插入的键
  * @return: 空闲桶的虚拟地址
  */
 pm_bucket* PmEHash::getFreeBucket(uint64_t key) {
 
-    int bucketid = hashFunc(key);
-    assert(bucketid != -1);
-    pm_bucket* insert_bucket=pmem_catalog->buckets_virtual_address[bucketid];
-    kv *insert_kv=getFreeKvSlot(insert_bucket);
-    if (insert_kv!=NULL) return insert_bucket;
+    while (1){//对连续分裂的处理
+        int bucketid = hashFunc(key);
+        pm_bucket* insert_bucket=catalog->buckets_virtual_address[bucketid];
+       
+        if (haveFreeKvSlot(insert_bucket))
+            return insert_bucket;
 
-    splitBucket(bucketid);
+        splitBucket(bucketid);
+    }
+}
 
-    allocNewPage();                                                   //执行到了这一步说明没有找到对应的页，因此要重新分配
-    data_page* tempPtr = page_record.back();
-    tempPtr->page_id = page_record.size() - 1;
+/**
+ * @description: 判断桶内是否存在空闲位置
+ * @param: pm_bucket* bucket
+ * @return bool: 存在/不存在空闲KvSlot 
+ */
+bool PmEHash::haveFreeKvSlot(pm_bucket* bucket) {
+    for (int i = 0; i < BUCKET_SLOT_NUM; i++) {
+        if (bucket->bitmap[i] == 0) return true;
+    }
 
-    return &(tempPtr->buckets[0]);
+    return false;
 }
 
 /**
@@ -196,60 +206,94 @@ kv* PmEHash::getFreeKvSlot(pm_bucket* bucket) {
 /**
  * @description: 桶满后进行分裂操作，可能触发目录的倍增
  * @param uint64_t: 目标桶在目录中的序号
- * @return: 返回新桶在目录中的序号(可能会触发连续分裂)
+ * @return: 无返回值
  */
-int PmEHash::splitBucket(uint64_t bucket_id) {
+void PmEHash::splitBucket(uint64_t bucket_id) {
 
-    pm_bucket* sp_Bucket=pmem_catalog->buckets_virtual_address[bucket_id];//得到被分裂的桶虚拟地址
+    pm_bucket* sp_Bucket=catalog->buckets_virtual_address[bucket_id];//得到被分裂的桶虚拟地址
 
-    if (pmem_catalog->len==pmem_catalog->maxLen) extendCatalog();//目录不够需要倍增目录
-    pmem_catalog->buckets_virtual_address[pmem_catalog->len]=(pm_bucket*)getFreeSlot(pmem_catalog->buckets_pm_address[pmem_catalog->len]);//得到新的桶虚拟地址(需要初始化)
-    pm_bucket* new_Bucket=pmem_catalog->buckets_virtual_address[pmem_catalog->len];
+    if (sp_Bucket->local_depth==metadata->global_depth) extendCatalog();//局部深度等于全局深度 需要倍增目录
 
-    pmem_catalog->local_depth[pmem_catalog->len]=pmem_catalog->local_depth[bucket_id]+1;//更新新桶的局部深度和标签
-    pmem_catalog->tag[pmem_catalog->len]=(pmem_catalog->tag[bucket_id]<<1)|1;
-   
-    pmem_catalog->local_depth[bucket_id]=pmem_catalog->local_depth[bucket_id]+1;//更新旧桶的局部深度和标签
-    pmem_catalog->tag[bucket_id]=(pmem_catalog->tag[bucket_id]<<1)|1;
+    pm_address* new_address;
+    pm_bucket* new_Bucket=(pm_bucket*)getFreeSlot(new_address);//得到新的桶虚拟地址(需要初始化)
+    
+    int old_local_depth=sp_Bucket->local_depth;
+    new_Bucket->local_depth=++sp_Bucket->local_depth;//更新桶的深度
    
     int cur=0;
-    for(int i=0;i<BUCKET_SLOT_NUM;i++) if ((sp_Bucket->slot[i].key & ((1 << pmem_catalog->local_depth[bucket_id]) - 1))!=pmem_catalog->tag[bucket_id]){
+    for(int i=0;i<BUCKET_SLOT_NUM;i++) if (hashFunc(sp_Bucket->slot[i].key)&(1<<old_local_depth)){
         sp_Bucket->bitmap[i]=0;
-        new_Bucket->bitmap[cur++]=1;
+        new_Bucket->bitmap[cur]=1;
         new_Bucket->slot[cur]->key=sp_Bucket->slot[i]->key;
         new_Bucket->slot[cur]->value=sp_Bucket->slot[i]->value;
+        cur++;
     }
 
-    pmem_catalog->len++;
+    //!!!需要持久化sp_Bucket和new_Bucket
+
+    for(int i=(bucket_id&((1<<old_local_depth)-1))|(1<<old_local_depth);i<(1<<metadata->global_depth);i+=(1<<(old_local_depth+1))){//更新目录项，一半指向旧桶的目录项指向新桶
+        catalog->buckets_pm_address[i]=*new_address;
+        catalog->buckets_virtual_address[i]=new_Bucket;
+    }
     
-    return pmem_catalog->len-1;
+    //!!!需要持久化目录
 
-    // uint64_t page_id = get_page_id(bucket_id);
-    // uint64_t bucket_offset = get_bucket_offset(bucket_id);
-
-    // for (auto itor = page_record.begin(); itor != page_record.end(); itor++) {
-    //     if (*itor->page_id == page_id) {
-    //         pm_bucket* tempPtr = new pm_bucket, *currentPtr = &(*itor->buckets[bucket_offset]);                    //在这个桶的后面加桶，利用指针
-    //         while (currentPtr->next != NULL) {
-    //             currentPtr = currentPtr->next;
-    //         }
-    //         currentPtr->next = tempPtr;
-    //         break;
-    //     }
-    // }
-
-    // return;
 }
 
 /**
- * @description: 桶空后，回收桶的空间，并设置相应目录项指针
+ * @description: 判断桶是否为空
+ * @param int: 桶号
+ * @return bool: 1桶为空/0桶不为空 
+ */
+bool PmEHash::isBucketFull(int bucket_id){
+    pm_bucket* tar_bucket=catalog->buckets_virtual_address[bucket_id];
+
+    for (int i = 0; i < BUCKET_SLOT_NUM; i++) {
+        if (tar_bucket->bitmap[i])
+            return 0;
+    
+    return 1;
+}
+
+/**
+ * @description: 桶空后，回收桶的空间，并设置相应目录项指针(可能会触发连续合并)
  * @param uint64_t: 桶号
  * @return: NULL
  */
 void PmEHash::mergeBucket(uint64_t bucket_id) {
-    
-}
+    pm_bucket* mer_bucket=catalog->buckets_virtual_address[bucket_id];
+    if (mer_bucket->local_depth==1) return;//局部深度为1时不能合并
+    bucket_id=bucket_id&((1<<mer_bucket->local_depth)-1);
 
+    while (1){//连续合并的处理
+        int dual_id=bucket_id^(1<<(mer_bucket->local_depth-1)); 
+        pm_bucket* dual_bucket=catalog->buckets_virtual_address[dual_id];
+        if (dual_bucket->local_depth!=mer_bucket->local_depth) break;
+        if (!isBucketFull(dual_id)) break;
+        
+        //需要合并
+        if (bucket_id&(1<<(mer_bucket->local_depth-1))){
+            swap(bucket_id,dual_id);
+            swap(dual_bucket,mer_bucket);
+        }
+        //使得第local_depth位为0的项为bucket_id  第local_depth位为1的项为dual_id
+        
+        freeEmptyBucket(catalog->buckets_virtual_address[dual_id]);//归还空间
+        mer_bucket->local_depth--;//局部深度--
+        //!!!需要持久化桶
+
+        for(int i=(bucket_id&((1<<mer_bucket->local_depth)-1))|(1<<mer_bucket->local_depth);i<(1<<metadata->global_depth);i+=(1<<(mer_bucket->local_depth+1))){//更新目录项，将指向一个桶的目录项全部改指另一个桶
+            catalog->buckets_pm_address[i]=catalog->buckets_pm_address[bucket_id];
+            catalog->buckets_virtual_address[i]=catalog->buckets_virtual_address[bucket_id];
+        }
+        
+        //!!!需要持久化目录        
+
+        if (mer_bucket->local_depth==1) break;
+
+    }
+
+}
 /**
  * @description: 对目录进行倍增，需要重新生成新的目录文件并复制旧值，然后删除旧的目录文件
  * @param NULL
@@ -265,6 +309,15 @@ void PmEHash::extendCatalog() {
  * @return: 新槽位的虚拟地址
  */
 void* PmEHash::getFreeSlot(pm_address& new_address) {
+
+}
+
+/**
+ * @description: 释放一个空桶的空间
+ * @param pm_address: 所释放槽位的虚拟地址
+ * @return: 无返回值
+ */
+void freeEmptyBucket(pm_bucket* bucket){
 
 }
 
