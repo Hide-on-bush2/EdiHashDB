@@ -1,6 +1,7 @@
 #include <string>
 #include "../include/data_page.h"
 #include "../include/pm_ehash.h"
+#include <time.h>
 
 #define KEY_LEN 8
 #define VALUE_LEN 8
@@ -64,7 +65,7 @@ void test_pm_ehash() {
     struct timespec start, finish;
     double          single_time;
 
-    printf("===================FPtreeDB===================\n");
+    printf("===================PMEHASH_DB===================\n");
     printf("PmEHash Directory: %s\n", PM_EHASH_DIRECTORY);
     printf("Load phase begins \n");
 
