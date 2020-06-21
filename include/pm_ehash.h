@@ -5,6 +5,7 @@
 #include<queue>
 #include<map>
 #include"data_page.h"
+#include<libpmem.h>
 
 #define BUCKET_SLOT_NUM               15
 #define DEFAULT_CATALOG_SIZE      16
@@ -63,7 +64,7 @@ class PmEHash
 private:
     
     ehash_metadata*                               metadata;                    // virtual address of metadata, mapping the metadata file
-    ehash_catalog                                      catalog;                        // the catalog of hash
+    ehash_catalog*                                      catalog;                        // the catalog of hash
 
     queue<pm_bucket*>                         free_list;                      //all free slots in data pages to store buckets
     map<pm_bucket*, pm_address> vAddr2pmAddr;       // map virtual address to pm_address, used to find specific pm_address
@@ -71,6 +72,7 @@ private:
     
     int hashFunc(uint64_t key);
 
+    bool isBucketFull(int bucket_id);
     pm_bucket* getFreeBucket(uint64_t key);
     pm_bucket* getNewBucket();
     void freeEmptyBucket(pm_bucket* bucket);
@@ -82,6 +84,7 @@ private:
     void extendCatalog();
     void* getFreeSlot(pm_address& new_address);
     void allocNewPage();
+    bool haveFreeKvSlot(pm_bucket* bucket);
 
     void recover();
     void mapAllPage();
@@ -98,4 +101,4 @@ public:
     void selfDestory();
 };
 
-#endif-
+#endif
