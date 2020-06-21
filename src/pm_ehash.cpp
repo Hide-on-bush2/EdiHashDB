@@ -1,6 +1,5 @@
 #include"../include/pm_ehash.h"
-#include <assert.h> 
-using std::assert;
+
 ehash_catalog* pmem_catalog;
 
 // bool is_full(const bool bit_map[], int size) {
