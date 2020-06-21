@@ -1,8 +1,8 @@
-#include "../include/pm_ehash.h"
+#include "pm_ehash.h"
 
-bool is_full(const bool bit_map[], int size) {
-    for (i = 0; i < size; i++) {
-        if (bit_map[i] == 0) {
+bool PmEHash::is_full(const uint8_t bit_map[], int size) {
+    for (int i = 0; i < size; i++) {
+        if (bit_map[i] ^ 0b1111 != 0) {
             return false;
         }
     }
@@ -10,15 +10,15 @@ bool is_full(const bool bit_map[], int size) {
     return true;
 }
 
-uint64_t get_page_id(uint64_t bucket_id) {
+uint64_t PmEHash::get_page_id(uint64_t bucket_id) {
     uint64_t page_id;
 
-    pate_id = 1;
+    page_id = 1;
 
     return page_id;
 }
 
-uint64_t get_bucket_offset(uint64_t bucket_id) {
+uint64_t PmEHash::get_bucket_offset(uint64_t bucket_id) {
     uint64_t bucket_offset;
 
     bucket_offset = 1;
@@ -26,14 +26,14 @@ uint64_t get_bucket_offset(uint64_t bucket_id) {
     return bucket_offset;
 }
 
-pm_bucket* get_bucket_head_address(uint64_t key) {        //得到一个键值要插入的目标桶的首地址
+pm_bucket* PmEHash::get_bucket_head_address(uint64_t key) {        //得到一个键值要插入的目标桶的首地址
     uint64_t bucket_id = hashFunc(key);
     uint64_t page_id = get_page_id(bucket_id);
     uint64_t bucket_offset = get_bucket_offset(bucket_id);
 
-    for (auto itor = page_record.begin(); itor != page_record.end(); itor++) {
-        if (*itor->page_id == page_id) {
-            return &(*itor->buckets[bucket_offset]);
+    for (auto itor : page_record) {
+        if (itor->page_id == page_id) {
+            return &(itor->buckets[bucket_offset]);
         }
     }
 
@@ -63,7 +63,7 @@ PmEHash::~PmEHash() {
  * @return: 0 = insert successfully, -1 = fail to insert(target data with same key exist)
  */
 int PmEHash::insert(kv new_kv_pair) {
-    int result;
+    uint64_t result;
     if (search(new_kv_pair.key, result) == 0) {
         return -1;
     }
@@ -107,10 +107,10 @@ int PmEHash::remove(uint64_t key) {
  * @return: 0 = update successfully, -1 = fail to update(target data doesn't exist)
  */
 int PmEHash::update(kv kv_pair) {
-    pm_bucket* tar_bucket = get_bucket_head_address(key);            //先找到这个key所在的桶的地址，然后遍历桶所有的kv对
+    pm_bucket* tar_bucket = get_bucket_head_address(kv_pair.key);            //先找到这个key所在的桶的地址，然后遍历桶所有的kv对
     while (tar_bucket != NULL) {
         for (int i = 0; i < BUCKET_SLOT_NUM; i++) {
-            if (tar_bucket->bitmap[i] && tar_bucket->slot[i].key == key) {
+            if (tar_bucket->bitmap[i] && tar_bucket->slot[i].key == kv_pair.key) {
                 tar_bucket->slot[i].value = kv_pair.value;
                 return 0;
             }
@@ -162,8 +162,11 @@ pm_bucket* PmEHash::getFreeBucket(uint64_t key) {
     pm_bucket* tar_bucket = get_bucket_head_address(key);
 
     if (tar_bucket != NULL) {
+        auto currentPtr = tar_bucket;
+        uint64_t bucket_id = 0;
         while (currentPtr->next != NULL) {
             currentPtr = currentPtr->next;                          //假如这个桶已经分裂过，找到这个桶的最后一个分裂桶
+            bucket_id++;
         }
 
         if (is_full(currentPtr->bitmap, BUCKET_SLOT_NUM)) {
@@ -175,9 +178,9 @@ pm_bucket* PmEHash::getFreeBucket(uint64_t key) {
 
     allocNewPage();                                                   //执行到了这一步说明没有找到对应的页，因此要重新分配
     data_page* tempPtr = page_record.back();
-    tempPtr->page_id = page_id;
+    tempPtr->page_id = page_record.size() - 1;
 
-    return &(tempPtr->buckets[bucket_offset]);
+    return &(tempPtr->buckets[0]);
 }
 
 /**
@@ -205,9 +208,9 @@ void PmEHash::splitBucket(uint64_t bucket_id) {
     uint64_t page_id = get_page_id(bucket_id);
     uint64_t bucket_offset = get_bucket_offset(bucket_id);
 
-    for (auto itor = page_record.begin(); itor != page_record.end(); itor++) {
-        if (*itor->page_id == page_id) {
-            pm_bucket* tempPtr = new pm_bucket, *currentPtr = &(*itor->buckets[bucket_offset]);                    //在这个桶的后面加桶，利用指针
+    for (auto itor : page_record) {
+        if (itor->page_id == page_id) {
+            pm_bucket* tempPtr = new pm_bucket, *currentPtr = &(itor->buckets[bucket_offset]);                    //在这个桶的后面加桶，利用指针
             while (currentPtr->next != NULL) {
                 currentPtr = currentPtr->next;
             }
@@ -279,7 +282,7 @@ void PmEHash::mapAllPage() {
  * @return: NULL
  */
 void PmEHash::selfDestory() {
-    for (auto itor = page_record.begin(); itor != page_record.end(); itor++) {
-        delete_page(*itor->page_id);
+    for (auto itor : page_record) {
+        delete_page(itor->page_id);
     }
 }

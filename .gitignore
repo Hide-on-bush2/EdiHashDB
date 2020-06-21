@@ -1,0 +1,5 @@
+*.o
+*.a
+.vscode/
+bin/
+obj/

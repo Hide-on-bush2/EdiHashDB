@@ -13,7 +13,10 @@
 using std::queue;
 using std::map;
 
-/*
+#include<cstring>
+
+
+/* 
 ---the physical address of data in NVM---
 fileId: 1-N, the data page name
 offset: data offset in the file
@@ -41,7 +44,7 @@ typedef struct pm_bucket
     kv       slot[BUCKET_SLOT_NUM];                                // one slot for one kv-pair
     struct pm_bucket* next;
 
-    struct pm_bucket() : next(NULL) {
+    pm_bucket() : next(NULL) {
         memset(bitmap, 0, sizeof(bitmap));
     }
 } pm_bucket;
@@ -49,7 +52,7 @@ typedef struct pm_bucket
 typedef struct ehash_catalog
 {
     pm_address* buckets_pm_address;         // pm address array of buckets
-    pm_bucket* buckets_virtual_address;    // virtual address array mapped by pmem_map
+    pm_bucket*  buckets_virtual_address;    // virtual address array mapped by pmem_map
 } ehash_catalog;
 
 typedef struct ehash_metadata
@@ -58,34 +61,30 @@ typedef struct ehash_metadata
     uint64_t catalog_size;     // the catalog size of catalog file(amount of data entry)
     uint64_t global_depth;   // global depth of PmEHash
 } ehash_metadata;
-// use pm_address to locate the data in the page
 
 // uncompressed page format design to store the buckets of PmEHash
 // one slot stores one bucket of PmEHash
 typedef struct data_page {
     // fixed-size record design
     // uncompressed page format
-    //һ������ҳ��Ҫ����ҳ��ţ� ��¼��Щ�ۿ����ã���Щ�۲����õ�λͼ���Լ�������ݵĲ�
-    //���Ǹ�ʾ��ͼ��һ����
     pm_bucket buckets[DATA_PAGE_SLOT_NUM];
     bool bit_map[DATA_PAGE_SLOT_NUM];
     int page_id;
 
-    struct datapage() {
+    data_page() {
         memset(bit_map, 0, sizeof(bit_map));
     }
 } data_page;
 
-bool is_full(const bool bit_map[], int size);           //�ж�����һ��bit_map���Ƿ��п��õ�λ��
 
+bool is_full(const bool bit_map[], int size);
 data_page* create_new_page(int id);
-
 void init_page_from_file();
+void write_page_to_file();
+void delete_page(int id);
 
 std::vector<data_page*>  page_record;
-
 std::vector<pm_address*> pm_address_record;
-
 std::vector<ehash_catalog*> ehash_catalog_record;
 
 #endif
