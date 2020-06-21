@@ -37,6 +37,7 @@ typedef struct kv
 
 typedef struct pm_bucket
 {
+    char local_depth;//记录局部深度  一个字节空间足够记录
     bool  bitmap[BUCKET_SLOT_NUM];      // one bit for each slot
     kv       slot[BUCKET_SLOT_NUM];                                // one slot for one kv-pair
 } pm_bucket;
@@ -46,10 +47,6 @@ typedef struct pm_bucket
 // buckets_virtual_address: store virtual address of bucket that each buckets_pm_address points to
 typedef struct ehash_catalog
 {
-    int len;                                //length of catalog
-    int maxLen;
-    int* local_depth;  
-    uint64_t* tag;
     pm_address* buckets_pm_address;         // pm address array of buckets
     pm_bucket** buckets_virtual_address;    // virtual address of buckets that buckets_pm_address point to
 } ehash_catalog;
@@ -58,7 +55,7 @@ typedef struct ehash_metadata
 {
     uint64_t max_file_id;      // next file id that can be allocated
     uint64_t catalog_size;     // the catalog size of catalog file(amount of data entry)
-    uint64_t global_depth;   // global depth of PmEHash
+    char global_depth;   // global depth of PmEHash  一个字节足够记录
 } ehash_metadata;
 
 class PmEHash
@@ -79,7 +76,7 @@ private:
     void freeEmptyBucket(pm_bucket* bucket);
     kv* getFreeKvSlot(pm_bucket* bucket);
 
-    int splitBucket(uint64_t bucket_id);
+    void splitBucket(uint64_t bucket_id);
     void mergeBucket(uint64_t bucket_id);
 
     void extendCatalog();
