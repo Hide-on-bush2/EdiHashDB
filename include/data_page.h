@@ -26,13 +26,13 @@ struct KV
     uint64_t value;
 };
 
-struct Bucket{
-    bool bitmap[BUCKET_SLOT_NUM];
-    KV kvs[BUCKET_SLOT_NUM];
-    Bucket(){
-        memset(bitmap, 0, sizeof(bitmap));
-    }
-};
+// struct Bucket{
+//     bool bitmap[BUCKET_SLOT_NUM];
+//     KV kvs[BUCKET_SLOT_NUM];
+//     Bucket(){
+//         memset(bitmap, 0, sizeof(bitmap));
+//     }
+// };
 
 // use pm_address to locate the data in the page
 
@@ -43,7 +43,7 @@ struct data_page{
     // uncompressed page format
     //一个数据页面要定义页面号， 记录哪些槽可以用，哪些槽不能用的位图，以及存放数据的槽
     //和那个示意图是一样的
-    Bucket buckets[DATA_PAGE_SLOT_NUM];
+    pm_bucket buckets[DATA_PAGE_SLOT_NUM];
     bool bit_map[DATA_PAGE_SLOT_NUM];
     int page_id;
 
