@@ -1,7 +1,11 @@
 #include <string>
-#include "../include/data_page.h"
 #include "../include/pm_ehash.h"
 #include <time.h>
+#include <cstring>
+#include <cstdlib>
+#include <cstdio>
+#include <iostream>
+using namespace std;
 
 #define KEY_LEN 8
 #define VALUE_LEN 8
@@ -12,7 +16,7 @@
 
 using namespace std;
 const int n = 2200000;
-const string workload = PROJECT_ROOT + "/workloads/";
+const string workload = "../workloads/";
 
 const string load =
     workload + "220w-rw-50-50-load.txt";  // the workload_load filename
@@ -44,7 +48,7 @@ void operate_pm_ehash(PmEHash* pm, uint64_t keys[], bool ifInsert[], int n, uint
         if (ifInsert[i]) {
             ++inserted;
             kv temp_kv;
-            temp_kv.key = key;
+            temp_kv.key = _key;
             temp_kv.value = 0;
             pm->insert(temp_kv);
         } else {
@@ -75,7 +79,7 @@ void test_pm_ehash() {
     clock_gettime(CLOCK_MONOTONIC, &start);
 
     // TODO: load the workload in the fptree
-    operate_fptree(&fptree, key, ifInsert, n, inserted, queried);
+    operate_pm_ehash(&pmehash, key, ifInsert, n, inserted, queried);
 
     clock_gettime(CLOCK_MONOTONIC, &finish);
     single_time = (finish.tv_sec - start.tv_sec) * 1000000000.0 +
@@ -94,7 +98,7 @@ void test_pm_ehash() {
     clock_gettime(CLOCK_MONOTONIC, &start);
 
     // TODO: operate the fptree
-    operate_pm_ehash(&fptree, key, ifInsert, READ_WRITE_NUM, inserted, queried);
+    operate_pm_ehash(&pmehash, key, ifInsert, READ_WRITE_NUM, inserted, queried);
 
     operation_num = inserted + queried;
 
