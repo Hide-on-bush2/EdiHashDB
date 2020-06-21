@@ -59,11 +59,11 @@ void init_page_from_file() {
 /*
  @在程序结束后，将所有的页写到持久内存中去
  */
-void write_page_to_file() {
-    for (auto itor : page_record) {
-        create_new_page(itor->page_id);
-    }
-}
+// void write_page_to_file() {
+//     for (auto itor : page_record) {
+//         create_new_page(itor->page_id);
+//     }
+// }
 
 /*
  @删除持久内存某一页
