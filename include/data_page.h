@@ -7,11 +7,10 @@
 #define DATA_PAGE_SLOT_NUM 16
 #define BUCKET_SLOT_NUM               15
 #define DEFAULT_CATALOG_SIZE      16
-#define META_NAME                                "pm_ehash_metadata";
-#define CATALOG_NAME                        "pm_ehash_catalog";
-#define PM_EHASH_DIRECTORY        "";        // add your own directory path to store the pm_ehash
 #define MAX_PAGE_NUM             1000        //定义最大的页面数为1000
 #define PERSIST_PATH             "/mnt/pmemdir/data/"
+#define PM_EHASH_DIRECTORY        "";        // add your own directory path to store the pm_ehash
+
 
 using std::queue;
 // using std::map;
@@ -20,11 +19,11 @@ queue<pm_bucket*> free_list;
 /*
 the data entry stored by the  ehash
 */
-struct KV
+typedef struct kv
 {
     uint64_t key;
     uint64_t value;
-};
+} kv;
 
 // struct Bucket{
 //     bool bitmap[BUCKET_SLOT_NUM];
