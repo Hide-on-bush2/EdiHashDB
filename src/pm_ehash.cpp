@@ -206,7 +206,7 @@ int PmEHash::search(uint64_t key, uint64_t& return_val) {
  * @return: 返回键所属的桶在目录中的编号
  */
 int PmEHash::hashFunc(uint64_t key) {
-    key=((key<<16)%998244353)*((key+10007)%1000000007)*(key>>16)*(key<<16)^key;//足够复杂的hash函数使得偏斜的key输入映射得到的hash函数值更均匀
+    key=((key<<16)%998244353)*((key+10007)%1000000007)*(key<<32)^key;//足够复杂的hash函数使得偏斜的key输入映射得到的hash函数值更均匀
 
     return key&((1<<metadata->global_depth)-1);//返回桶号    
 }
@@ -271,7 +271,7 @@ void PmEHash::splitBucket(uint64_t bucket_id) {
 
     pm_address new_address;
     pm_bucket* new_Bucket=(pm_bucket*)getFreeSlot(new_address);//得到新的桶虚拟地址(需要初始化)
-    
+
     int old_local_depth=sp_Bucket->local_depth;
     new_Bucket->local_depth=++sp_Bucket->local_depth;//更新桶的深度
    
@@ -397,6 +397,11 @@ void* PmEHash::getFreeSlot(pm_address& new_address) {
     // mreturn new_bucket;
     if(free_list.empty()) allocNewPage();
     pm_bucket* new_bucket = free_list.front();
+    pm_address bucket_address=vAddr2pmAddr[new_bucket];
+    data_page* bucket_data_page=data_page_list[bucket_address.fileId-1];
+    bucket_data_page->bit_map[bucket_address.offset/sizeof(pm_bucket)]=1;
+
+
     free_list.pop();
     new_address = vAddr2pmAddr[new_bucket];
     return new_bucket;
@@ -458,7 +463,6 @@ void PmEHash::mapAllPage() {
  * @return: NULL
  */
 void PmEHash::selfDestory() {
-    // for (auto itor : page_record) {
-    //     delete_page(itor->page_id);
-    // }
+    system("rm -rf /mnt/pmemdir/data");
+    system("mkdir /mnt/pmemdir/data");
 }

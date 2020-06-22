@@ -8,11 +8,12 @@ int main(){
 	// printf("page id: %d\n", new_page->page_id);
 	// delete_page(1);
 	// printf("page id: %d\n", new_page->page_id);
-
+    //我进来了
 	PmEHash* ehash = new PmEHash;
     kv temp;
     temp.key = temp.value = 1;
     int result = ehash->insert(temp);
+    //cout << result << endl;
     assert(result==0);
     uint64_t val;
     result = ehash->search(1, val);
