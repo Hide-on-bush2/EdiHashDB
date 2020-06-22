@@ -7,6 +7,7 @@
 #define DATA_PAGE_SLOT_NUM 16
 #define BUCKET_SLOT_NUM               15
 #define DEFAULT_CATALOG_SIZE      16
+#define DEFAULT_GLOBAL_DEPTH 4
 #define MAX_PAGE_NUM             1000        //定义最大的页面数为1000
 #define PERSIST_PATH             "/mnt/pmemdir/data/"
 #define PM_EHASH_DIRECTORY        "";        // add your own directory path to store the pm_ehash
@@ -36,6 +37,9 @@ typedef struct pm_bucket
     char local_depth;//记录局部深度  一个字节空间足够记录
     bool  bitmap[BUCKET_SLOT_NUM];      // one bit for each slot
     kv       slot[BUCKET_SLOT_NUM];                                // one slot for one kv-pair
+    pm_bucket(){
+        memset(bitmap, 0, sizeof(bitmap));
+    }
 } pm_bucket;
 
 // use pm_address to locate the data in the page
@@ -53,9 +57,9 @@ struct data_page{
 
     data_page(){
         memset(bit_map, 0, sizeof(bit_map));
-        for(int i = 0;i < DATA_PAGE_SLOT_NUM;i++){
-            free_list.push(&(buckets[i]));
-        }
+        // for(int i = 0;i < DATA_PAGE_SLOT_NUM;i++){
+        //     free_list.push(&(buckets[i]));
+        // }
     }
 };
 

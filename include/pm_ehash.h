@@ -8,9 +8,9 @@
 #include"data_page.h"
 #include<libpmem.h>
 
-#define PM_EHASH_DIRECTORY        "";        // add your own directory path to store the pm_ehash
-#define META_NAME                                "pm_ehash_metadata";
-#define CATALOG_NAME                        "pm_ehash_catalog";
+#define PM_EHASH_DIRECTORY         "/mnt/pmemdir/data/"      // add your own directory path to store the pm_ehash
+#define META_NAME                                "pm_ehash_metadata"
+#define CATALOG_NAME                        "pm_ehash_catalog"
 
 using std::queue;
 using std::map;
@@ -25,7 +25,12 @@ typedef struct pm_address
 {
     uint32_t fileId;
     uint32_t offset;
+    inline bool operator <(const pm_address &a)const{
+        if (fileId==a.fileId) return offset<a.offset;
+        return fileId<a.fileId;
+    }
 } pm_address;
+
 
 // in ehash_catalog, the virtual address of buckets_pm_address[n] is stored in buckets_virtual_address
 // buckets_pm_address: open catalog file and store the virtual address of file
