@@ -1,11 +1,14 @@
-# 编译加了libpmem库的源文件时加上-l pmem参数进行编译
-# 在这个makefile中添加ycsb测试的相关编译命令，运行ycsb
-
 FLAGES = -std=c++11 -lpmem -g
 
 
 all:main.o data_page.o pm_ehash.o
 	g++ main.o data_page.o pm_ehash.o -o main $(FLAGES)
+
+ycsb:ycsb.o data_page.o pm_ehash.o
+	g++ ycsb.o data_page.o pm_ehash.o -o ycsb $(FLAGES)
+
+ycsb.o:pm_ehash.o
+	g++ -c ycsb.cpp $(FLAGES)
 main.o:pm_ehash.o
 	g++ -c main.cpp $(FLAGES)
 data_page.o:../include/data_page.h data_page.cpp

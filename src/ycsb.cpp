@@ -5,7 +5,6 @@
 #include <cstdlib>
 #include <cstdio>
 #include <iostream>
-#include <string>
 using namespace std;
 
 #define KEY_LEN 8
@@ -106,11 +105,10 @@ void test_pm_ehash() {
     clock_gettime(CLOCK_MONOTONIC, &finish);
     single_time = (finish.tv_sec - start.tv_sec) +
                   (finish.tv_nsec - start.tv_nsec) / 1000000000.0;
-    printf("Run phase finishes: %lu/%lu items are inserted/searched\n", inserted,
-           operation_num - inserted);
+    printf("Run phase finishes: %lu items are inserted\n", inserted);
+    printf("Run phase finishes: %lu items are searched\n", operation_num - inserted);
     printf("Run phase throughput: %f operations per second \n",
            READ_WRITE_NUM / single_time);
-
     delete[] key;
     delete[] ifInsert;
 }
