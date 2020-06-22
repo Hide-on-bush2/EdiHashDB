@@ -14,7 +14,6 @@
 
 using std::queue;
 // using std::map;
-queue<pm_bucket*> free_list;
 
 /*
 the data entry stored by the  ehash
