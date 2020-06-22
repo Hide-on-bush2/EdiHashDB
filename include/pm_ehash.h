@@ -4,17 +4,17 @@
 #include<cstdint>
 #include<queue>
 #include<map>
+#include<vector>
 #include"data_page.h"
 #include<libpmem.h>
 
-#define BUCKET_SLOT_NUM               15
-#define DEFAULT_CATALOG_SIZE      16
+#define PM_EHASH_DIRECTORY        "";        // add your own directory path to store the pm_ehash
 #define META_NAME                                "pm_ehash_metadata";
 #define CATALOG_NAME                        "pm_ehash_catalog";
-#define PM_EHASH_DIRECTORY        "";        // add your own directory path to store the pm_ehash
 
 using std::queue;
 using std::map;
+using std::vector;
 
 /* 
 ---the physical address of data in NVM---
@@ -26,22 +26,6 @@ typedef struct pm_address
     uint32_t fileId;
     uint32_t offset;
 } pm_address;
-
-/*
-the data entry stored by the  ehash
-*/
-typedef struct kv
-{
-    uint64_t key;
-    uint64_t value;
-} kv;
-
-typedef struct pm_bucket
-{
-    char local_depth;//记录局部深度  一个字节空间足够记录
-    bool  bitmap[BUCKET_SLOT_NUM];      // one bit for each slot
-    kv       slot[BUCKET_SLOT_NUM];                                // one slot for one kv-pair
-} pm_bucket;
 
 // in ehash_catalog, the virtual address of buckets_pm_address[n] is stored in buckets_virtual_address
 // buckets_pm_address: open catalog file and store the virtual address of file
@@ -69,6 +53,7 @@ private:
     queue<pm_bucket*>                         free_list;                      //all free slots in data pages to store buckets
     map<pm_bucket*, pm_address> vAddr2pmAddr;       // map virtual address to pm_address, used to find specific pm_address
     map<pm_address, pm_bucket*> pmAddr2vAddr;       // map pm_address to virtual address, used to find specific virtual address
+    vector<data_page*> data_page_list; 
     
     int hashFunc(uint64_t key);
 
