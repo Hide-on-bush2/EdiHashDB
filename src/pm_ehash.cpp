@@ -154,7 +154,7 @@ int PmEHash::search(uint64_t key, uint64_t& return_val) {
  * @return: 返回键所属的桶在目录中的编号
  */
 int PmEHash::hashFunc(uint64_t key) {
-    key=((key<<16)%998244353)*((key+1)%1000000007)*(key>>32)*(key<<32)^key;//足够复杂的hash函数使得对于偏斜的key输入，hash后使其均匀
+    key=((key<<16)%998244353)*((key+10007)%1000000007)*(key>>16)*(key<<16)^key;//足够复杂的hash函数使得偏斜的key输入映射得到的hash函数值更均匀
 
     return key&((1<<metadata->global_depth)-1);//返回桶号    
 }
@@ -314,22 +314,7 @@ void PmEHash::extendCatalog() {
 void* PmEHash::getFreeSlot(pm_address& new_address) {  
     // pm_bucket* new_bucket = get_free_bucket(file_addrss);
     // return new_bucket;
-    if(!free_list.empty()){
-        metadata->max_file_id++;
-        auto name = std::string(PERSIST_PATH) + to_string(metadata->max_file_id);
-        size_t map_len;
-        int is_pmem;  
-        data_page* new_page = pmem_map_file(name.c_str(), sizeof(data_page), PMEM_FILE_CREATE, 0777, &map_len, &is_pmem);
-        pm_address new_address;
-        new_address.fileId = metadata->max_file_id;
-        for(int i = 0;i < DATA_PAGE_SLOT_NUM;i++){
-            free_list.push(&new_page->buckets[i]);
-            new_addrss.offset = i*sizeof(pm_bucket*);
-            vAddr2pmAddr[&new_page->buckets[i]] = new_address;
-            pmAddr2vAddr[new_address] = &new_page->buckets[i];
-        }
-           
-    }
+    if(free_list.empty()) allocNewPage();
     pm_bucket* new_bucket = free_list.front();
     free_list.pop();
     new_address = vAddr2pmAddr[new_bucket];
@@ -342,7 +327,10 @@ void* PmEHash::getFreeSlot(pm_address& new_address) {
  * @return: 无返回值
  */
 void freeEmptyBucket(pm_bucket* bucket){
-    
+    free_list.push(bucket);
+    pm_address bucket_address=vAddr2pmAddr[bucket];
+    data_page* bucket_data_page=data_page_list[bucket_address.fileId-1];
+    bucket_data_page->bit_map[bucket_address.offset/sizeof(pm_bucket)]=0;
 }
 
 /**
@@ -351,7 +339,17 @@ void freeEmptyBucket(pm_bucket* bucket){
  * @return: NULL
  */
 void PmEHash::allocNewPage() {
-    // page_record.push_back(new data_page);               //在vector的末尾加入新的一页
+    metadata->max_file_id++;
+    data_page* new_page=create_new_page(metadata->max_file_id);
+    pm_address new_address;
+    new_address.fileId = metadata->max_file_id;
+    for(int i = 0;i < DATA_PAGE_SLOT_NUM;i++){
+        free_list.push(&new_page->buckets[i]);
+        new_addrss.offset = i*sizeof(pm_bucket);
+        vAddr2pmAddr[&new_page->buckets[i]] = new_address;
+        pmAddr2vAddr[new_address] = &new_page->buckets[i];
+        data_page_list.push_back(new_page);
+    }
 }
 
 /**
@@ -361,6 +359,7 @@ void PmEHash::allocNewPage() {
  */
 void PmEHash::recover() {
     init_page_from_file();
+    mapAllPage();
 }
 
 /**
