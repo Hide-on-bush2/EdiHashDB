@@ -19,42 +19,44 @@ using namespace std;
 // 数据页表的相关操作实现都放在这个源文件下，如PmEHash申请新的数据页和删除数据页的底层实现
 
 data_page* create_new_page(uint32_t id){
-    auto name = std::string(PERSIST_PATH) + to_string(id);
-	size_t map_len;
-    int is_pmem;
-    printf("%s\n", name.c_str());
-	data_page* new_page = (data_page*)pmem_map_file(name.c_str(), sizeof(data_page), PMEM_FILE_CREATE, 0777, &map_len, &is_pmem);
-	new_page->page_id = id;
+ 
+    string name = std::string(PERSIST_PATH) + to_string(metadata->max_file_id);
+    size_t map_len;
+    int is_pmem;  
+    data_page* new_page = pmem_map_file(name.c_str(), sizeof(data_page), PMEM_FILE_CREATE, 0777, &map_len, &is_pmem);
+    new_page->page_id = id;
+    for(int i=0;i<DATA_PAGE_SLOT_NUM;i++) new_page->bit_map[i]=0;
 
-	printf("is_pmem:%d\n", is_pmem);
-    pmem_persist(new_page, map_len);
-    pmem_unmap(new_page, map_len);
-    // printf("Page id%d\n", new_page);
+    return new_page;
+	// printf("is_pmem:%d\n", is_pmem);
+    // pmem_persist(new_page, map_len);
+    // pmem_unmap(new_page, map_len);
+    // // printf("Page id%d\n", new_page);
 
-    data_page* old_page = (data_page*)pmem_map_file(name.c_str(), sizeof(data_page), PMEM_FILE_CREATE, 0777, &map_len, &is_pmem);
-    printf("page id: %d\n", old_page->page_id);
-	return old_page;
+    // data_page* old_page = (data_page*)pmem_map_file(name.c_str(), sizeof(data_page), PMEM_FILE_CREATE, 0777, &map_len, &is_pmem);
+    // printf("page id: %d\n", old_page->page_id);
+	// return old_page;
 }
 
 /*
  @*程序开始运行时，将所有在持久化内存中的数据读入
  */
-// void init_page_from_file() {
-//     FILE* _file = nullptr;
-//     size_t map_len;
-//     int is_pmem;
+void init_page_from_file() {
+    // FILE* _file = nullptr;
+    // size_t map_len;
+    // int is_pmem;
 
-//     for (int i = 0; i < MAX_PAGE_NUM; i++) {
-//         auto name = std::string(PERSIST_PATH) + to_string(i);
-//         _file = fopen(name.c_str(), "rb");
-//         if (_file) {                           //代表这一页是存在的是存在的
-//             data_page* new_page = (data_page*)pmem_map_file(name.c_str(), sizeof(data_page), PMEM_FILE_CREATE, 0777, &map_len, &is_pmem);
-//             page_record.push_back(new_page);
-//         }
-//         fclose(_file);
-//     }
+    // for (int i = 0; i < MAX_PAGE_NUM; i++) {
+    //     auto name = std::string(PERSIST_PATH) + to_string(i);
+    //     _file = fopen(name.c_str(), "rb");
+    //     if (_file) {                           //代表这一页是存在的是存在的
+    //         data_page* new_page = (data_page*)pmem_map_file(name.c_str(), sizeof(data_page), PMEM_FILE_CREATE, 0777, &map_len, &is_pmem);
+    //         page_record.push_back(new_page);
+    //     }
+    //     fclose(_file);
+    // }
 
-// }
+}
 
 /*
  @在程序结束后，将所有的页写到持久内存中去
