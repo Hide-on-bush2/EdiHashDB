@@ -34,6 +34,9 @@ CFLAGS = -fPIC -std=c99 -O3 -msse4.2 -mpclmul -march=native -funroll-loops -Wstr
 # Flags passed to the C++ compiler.
 CXXFLAGS += -g -pthread -std=c++11
 
+# gbd
+GBDFLAGS = -g
+
 # Google Test libraries
 GTEST_LIBS = libgtest.a libgtest_main.a
 

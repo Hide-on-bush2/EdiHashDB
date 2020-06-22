@@ -5,6 +5,7 @@
 #include <cstdlib>
 #include <cstdio>
 #include <iostream>
+#include <string>
 using namespace std;
 
 #define KEY_LEN 8

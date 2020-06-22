@@ -12,7 +12,7 @@ typedef struct data
 int main() {
     size_t map_len;
     int is_pmem;
-    data* tdata = pmem_map_file("/mnt/pmemdir/testfile", sizeof(data), PMEM_FILE_CREATE, 0777, &map_len, &is_pmem);
+    data* tdata = pmem_map_file("/mnt/pmemdir/", sizeof(data), PMEM_FILE_CREATE, 0777, &map_len, &is_pmem);
     tdata->v1 = 10;
     tdata->v2 = 20;
     printf("is_pmem:%d\n", is_pmem);
