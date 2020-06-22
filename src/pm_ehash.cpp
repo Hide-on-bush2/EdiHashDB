@@ -53,6 +53,7 @@ PmEHash::PmEHash() {
     //!!!需要初始化metadata全局深度为4  所有桶局部深度也要初始化为4
 
     //如果metadata不存在 新建所有数据库文件
+
     string name = std::string(PERSIST_PATH) + std::string("metadata");
     int is_pmem;
     size_t metadata_len;
@@ -61,11 +62,10 @@ PmEHash::PmEHash() {
     metadata->max_file_id = 0;
     metadata->global_depth = DEFAULT_GLOBAL_DEPTH;
     pmem_persist(metadata, metadata_len);
-
     // size_t catalog_len;
     // name = std::string(PERSIST_PATH) + std::string("catalog");
     // catalog = (ehash_catalog*)pmem_map_file(name.c_str(), sizeof(ehash_catalog), PMEM_FILE_CREATE, 0666, &catalog_len, &is_pmem);
-    
+    //以上成功执行
     size_t pm_address_len;
     size_t virtual_address_len;
     name = std::string(PERSIST_PATH) + std::string("pm_address");
@@ -82,7 +82,7 @@ PmEHash::PmEHash() {
 
     pmem_persist(buckets_address, sizeof(pm_address)*DEFAULT_CATALOG_SIZE);
     pmem_persist(virtual_address, sizeof(pm_bucket*)*DEFAULT_CATALOG_SIZE);
-
+    catalog = new ehash_catalog;
     catalog->buckets_pm_address = buckets_address;
     catalog->buckets_virtual_address = virtual_address;
     // pmem_persist(catalog, catalog_len);
