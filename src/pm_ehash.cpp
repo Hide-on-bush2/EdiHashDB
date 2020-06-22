@@ -5,6 +5,7 @@
 #include <string>
 
 using std::swap;
+using std::assert;
 
 // bool is_full(const bool bit_map[], int size) {
 //     for (int i = 0; i < size; i++) {
