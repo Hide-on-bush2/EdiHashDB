@@ -98,17 +98,15 @@ PmEHash::~PmEHash() {
     // pmem_unmap(catalog, sizeof(ehash_catalog));
     pmem_persist(catalog->buckets_pm_address, sizeof(pm_address)*DEFAULT_CATALOG_SIZE);
     pmem_unmap(catalog->buckets_pm_address, sizeof(pm_address)*DEFAULT_CATALOG_SIZE);
-
     pmem_persist(catalog->buckets_virtual_address, sizeof(pm_bucket*)*DEFAULT_CATALOG_SIZE);
     pmem_unmap(catalog->buckets_virtual_address, sizeof(pm_bucket*)*DEFAULT_CATALOG_SIZE);
-
     pmem_persist(metadata, sizeof(ehash_metadata));
     pmem_unmap(metadata, sizeof(ehash_metadata));
-
     for(auto page : data_page_list){
         pmem_persist(page, sizeof(data_page));
-        pmem_unmap(page, sizeof(data_page));
+        //pmem_unmap(page, sizeof(data_page));
     }
+
 }
 
 /**
