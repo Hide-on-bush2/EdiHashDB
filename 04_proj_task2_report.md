@@ -220,9 +220,60 @@ void PmEHash::extendCatalog() {
 
 ### 桶空后的空间回收
 
+### 定长页表的设计
+
+&emsp;&emsp;定长页表的头文件设计如下：
+
+``` C++
+struct data_page{
+    // fixed-size record design
+    // uncompressed page format
+    //一个数据页面要定义页面号， 记录哪些桶可以用，哪些桶不能用的位图，以及存放数据的桶
+    //和TA示意图是一样的
+    pm_bucket buckets[DATA_PAGE_SLOT_NUM];
+    bool bit_map[DATA_PAGE_SLOT_NUM];
+    uint32_t page_id;
+
+    data_page(){
+        memset(bit_map, 0, sizeof(bit_map));
+    }
+};
+```
+&emsp;&emsp;在初始化的过程只要将所有的桶记为可用即可。
+
 ### 分配新的一页
 
+&emsp;&emsp;实现这个功能所用的函数为**allocNewPage()**，首先需要在持久化内存上建立新的一页，也就是建立新的文件，然后需要将新建的一页的每一个桶都记为可用，并建立持久内存和虚拟内存之间的对应联系，并将**catalog**的**max_file_id**加1即可。实现代码如下：
+
+``` C++
+/**
+ * @description: 申请新的数据页文件，并把所有新产生的空闲槽的地址放入free_list等数据结构中
+ * @param NULL
+ * @return: NULL
+ */
+void PmEHash::allocNewPage() {
+    metadata->max_file_id++;
+    data_page* new_page=create_new_page(metadata->max_file_id);
+    pm_address new_address;
+    new_address.fileId = metadata->max_file_id;
+    for(int i = 0;i < DATA_PAGE_SLOT_NUM;i++){
+        free_list.push(&new_page->buckets[i]);
+        new_address.offset = i*sizeof(pm_bucket);
+        vAddr2pmAddr[&new_page->buckets[i]] = new_address;
+        pmAddr2vAddr[new_address] = &new_page->buckets[i];
+        data_page_list.push_back(new_page);
+    }
+}
+```
+
 ### 修改NVM的操作
+
+&emsp;&emsp;修改持久化内存主要用到以下三个函数：
++ **void pmem_persist(const void \*addr, size_t len)**
++ **void \*pmem_map_file(const char \*path, size_t len, int flags,mode_t mode, size_t \*mapped_lenp, int \*is_pmemp)**
++ **int pmem_unmap(void \*addr, size_t len)**
+
+&emsp;&emsp;其中第一个函数是将在缓存(虚拟地址)中的修改记录到持久内存中去，第二个函数是用于创建或打开文件并将其映射到内存，第三个函数用于取消映射指定的区域。这三个函数是库函数，已经为我们提供了接口，所以只需要在内存持久化的过程中调用就可以了。在上面的代码中我们也可以看到在持久化内存的时候这三个函数频繁被调用。
 
 ### 重新启动时恢复映射状态
 
@@ -287,7 +338,7 @@ void PmEHash::mapAllPage() {
 
 ## ycsb结果
 
-![ycsb](./images/ycsb.png)
+![ycsb](./images/ycsb(persist).png)
 
 ## ycsb结果分析
 
@@ -310,7 +361,7 @@ void PmEHash::mapAllPage() {
 
 ### Update(更新数据)
 
-&emsp;&emsp;更新数据的过程和查找数据的过程时间复杂度是一样的，只需要在找到数据之后进行一次修改操作就可以了。
+&emsp;&emsp;更新数据的过程和查找数据的过程时间复杂度是一样的，只需要在找到数据之后进行一次修改操作就可以了。但由于更新数据也需要访问内存，所以所需的时间比单纯查找要慢一些。
 
 ### 总体分析
 
