@@ -1,4 +1,4 @@
-FLAGES = -std=c++11 -lpmem -g
+FLAGES = -std=c++11 -lpmem -O3
 
 
 all:main.o data_page.o pm_ehash.o
@@ -17,4 +17,4 @@ pm_ehash.o:../include/pm_ehash.h pm_ehash.cpp ../include/data_page.h
 	g++ -c pm_ehash.cpp $(FLAGES)
 
 clean:
-	rm -r *.o
+	rm -r *.o ycsb

@@ -24,7 +24,6 @@ data_page* create_new_page(uint32_t id){
     
     data_page* new_page = (data_page*)pmem_map_file(name.c_str(), sizeof(data_page), PMEM_FILE_CREATE, 0666, &map_len, &is_pmem);
     new_page->page_id = id;
-    printf("%d", map_len);
     for(int i=0;i<DATA_PAGE_SLOT_NUM;i++) new_page->bit_map[i]=0;
     pmem_persist(new_page, map_len);
     return new_page;
