@@ -1,3 +1,4 @@
+  
 #include"../include/pm_ehash.h"
 #include"../include/data_page.h"
 #include<algorithm>
@@ -111,6 +112,7 @@ PmEHash::~PmEHash() {
         pmem_persist(page, sizeof(data_page));
         pmem_unmap(page, sizeof(data_page));
     }
+    
 }
 
 /**
