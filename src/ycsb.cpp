@@ -39,9 +39,33 @@ void operate_pm_ehash(PmEHash *pm, vector<uint64_t> *keys, vector<char> *opcode,
     int result;
     kv temp_kv;
     uint64_t n = keys->size();
+    struct timespec start, finish;
+    double single_time;
+    clock_gettime(CLOCK_MONOTONIC, &start);
     for (int i = 0; i < n; ++i)
     {
         key = (*keys)[i];
+        if ((*opcode)[i] == 'U' && (*opcode)[i - 1] == 'I') {
+            clock_gettime(CLOCK_MONOTONIC, &finish);
+            single_time = (finish.tv_sec - start.tv_sec) * 1000000000.0 +
+                  (finish.tv_nsec - start.tv_nsec);
+            printf("Insert time cost: %fs\n", single_time / 1000000000.0);
+            clock_gettime(CLOCK_MONOTONIC, &start);
+        }
+        else if ((*opcode)[i] == 'R' && (*opcode)[i - 1] == 'U') {
+            clock_gettime(CLOCK_MONOTONIC, &finish);
+            single_time = (finish.tv_sec - start.tv_sec) * 1000000000.0 +
+                  (finish.tv_nsec - start.tv_nsec);
+            printf("Update time cost: %fs\n", single_time / 1000000000.0);
+            clock_gettime(CLOCK_MONOTONIC, &start);
+        }
+        else if ((*opcode)[i] == 'D' && (*opcode)[i - 1] == 'R') {
+            clock_gettime(CLOCK_MONOTONIC, &finish);
+            single_time = (finish.tv_sec - start.tv_sec) * 1000000000.0 +
+                  (finish.tv_nsec - start.tv_nsec);
+            printf("Read time cost: %fs\n", single_time / 1000000000.0);
+            clock_gettime(CLOCK_MONOTONIC, &start);
+        }
         switch ((*opcode)[i])
         {
         case 'I':
@@ -66,6 +90,7 @@ void operate_pm_ehash(PmEHash *pm, vector<uint64_t> *keys, vector<char> *opcode,
             }
             break;
         case 'U':
+            
             ++updated;
             temp_kv.key = key;
             temp_kv.value = random() + 1;
@@ -131,6 +156,10 @@ void operate_pm_ehash(PmEHash *pm, vector<uint64_t> *keys, vector<char> *opcode,
             break;
         }
     }
+    clock_gettime(CLOCK_MONOTONIC, &finish);
+    single_time = (finish.tv_sec - start.tv_sec) * 1000000000.0 +
+                  (finish.tv_nsec - start.tv_nsec);
+            printf("Delete time cost: %fs\n", single_time / 1000000000.0);
 }
 
 void test_pm_ehash(std::string load, std::string run)
