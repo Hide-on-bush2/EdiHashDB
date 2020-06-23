@@ -16,6 +16,7 @@ using namespace std;
 
 using namespace std;
 const int n = 2200000;
+//const int n = 1;
 const string workload = "../workloads/";
 
 const string load =
@@ -26,7 +27,7 @@ const string run =
 const string filePath = PM_EHASH_DIRECTORY;
 
 const int READ_WRITE_NUM = 350000;  // TODO: amount of operations
-
+//const int READ_WRITE_NUM = 1;
 void read_ycsb(const string& fn, int n, uint64_t keys[], bool ifInsert[]) {
     FILE*    fp = fopen(fn.c_str(), "r");
     char     op[8];
@@ -86,7 +87,7 @@ void test_pm_ehash() {
                   (finish.tv_nsec - start.tv_nsec);
     printf("Load phase finishes: %lu items are inserted \n", inserted);
     printf("Load phase used time: %fs\n", single_time / 1000000000.0);
-    printf("Load phase single insert time: %fns\n", single_time / inserted);
+    printf("Load phase single insert time: %fns\n\n", single_time / inserted);
 
     printf("Run phase begins\n");
 
@@ -107,8 +108,7 @@ void test_pm_ehash() {
                   (finish.tv_nsec - start.tv_nsec) / 1000000000.0;
     printf("Run phase finishes: %lu items are inserted\n", inserted);
     printf("Run phase finishes: %lu items are searched\n", operation_num - inserted);
-    printf("Run phase throughput: %f operations per second \n",
-           READ_WRITE_NUM / single_time);
+    printf("Run phase throughput: %f operations per second \n", READ_WRITE_NUM / single_time);
     delete[] key;
     delete[] ifInsert;
 }
