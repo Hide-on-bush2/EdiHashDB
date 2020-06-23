@@ -78,6 +78,7 @@ private:
 
     void recover();
     void mapAllPage();
+    void persistAll();
 
 public:
     PmEHash();

@@ -13,13 +13,12 @@ int main(){
     temp.key = temp.value = 1;
     int result = ehash->insert(temp);
     //cout << result << endl;
-    assert(result==0);
+    assert(result==-1);
     uint64_t val;
     result = ehash->search(1, val);
     assert(result==0);
     assert(val==1);
     result = ehash->search(0, val);
     assert(result==-1);
-    ehash->selfDestory();
 	return 0;
 }

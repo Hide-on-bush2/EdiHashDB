@@ -1,4 +1,4 @@
-FLAGES = -std=c++11 -lpmem -O3
+FLAGES = -std=c++11 -lpmem -O3 -g
 
 
 all:main.o data_page.o pm_ehash.o
