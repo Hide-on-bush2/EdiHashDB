@@ -19,21 +19,17 @@ int main(int argc, char **argv)
     }
     for (int i = 0; i < op_count; i++)
     {
-        int op = random() % 4;
-        switch (op)
-        {
-        case 0:
+        if (i < op_count / 4) {
             fprintf(run, "INSERT %lu\n", ((uint64_t)random() * random()) % maxVal + 1);
-            break;
-        case 1:
+        }
+        else if (i >= op_count / 4 && i < op_count / 2){
             fprintf(run, "UPDATE %lu\n", ((uint64_t)random() * random()) % maxVal + 1);
-            break;
-        case 2:
+        }
+        else if (i >= op_count / 2 && i < 3 * op_count / 4) {
             fprintf(run, "READ %lu\n", ((uint64_t)random() * random()) % maxVal + 1);
-            break;
-        case 3:
+        }
+        else {
             fprintf(run, "DELETE %lu\n", ((uint64_t)random() * random()) % maxVal + 1);
-            break;
         }
     }
 
