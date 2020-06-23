@@ -380,8 +380,9 @@ void PmEHash::extendCatalog() {
     size_t pm_address_len;
     catalog->buckets_pm_address = (pm_address*)pmem_map_file(name.c_str(), sizeof(pm_address)<<metadata->global_depth, PMEM_FILE_CREATE, 0666, &pm_address_len, &is_pmem);
     
-    name = std::string(PERSIST_PATH) + std::string("pm_bucket*");
-    catalog->buckets_virtual_address = (pm_bucket**)pmem_map_file(name.c_str(), sizeof(pm_bucket*)<<metadata->global_depth, PMEM_FILE_CREATE, 0666, &pm_address_len, &is_pmem);
+    size_t virtual_address_len;
+    name = std::string(PERSIST_PATH) + std::string("pm_bucket");
+    catalog->buckets_virtual_address = (pm_bucket**)pmem_map_file(name.c_str(), sizeof(pm_bucket*)<<metadata->global_depth, PMEM_FILE_CREATE, 0666, &virtual_address_len, &is_pmem);
 
     for(int i=0;i<(1<<(metadata->global_depth-1));i++){
         catalog->buckets_pm_address[i]=old_pm_address[i];
@@ -461,7 +462,28 @@ void PmEHash::recover() {
  * @return: NULL
  */
 void PmEHash::mapAllPage() {
+    //读入pm_addresshe和pm_bucket两个文件，并将映射的指针赋值给catalog
+    catalog = new ehash_catalog;
+
+    std::string name = std::string(PERSIST_PATH) + std::string("pm_address");
+    int is_pmem;
+    size_t pm_address_len;
+    catalog->buckets_pm_address = (pm_address*)pmem_map_file(name.c_str(), sizeof(pm_address)<<metadata->global_depth, PMEM_FILE_CREATE, 0666, &pm_address_len, &is_pmem);
     
+    size_t virtual_address_len;
+    name = std::string(PERSIST_PATH) + std::string("pm_bucket");
+    catalog->buckets_virtual_address = (pm_bucket**)pmem_map_file(name.c_str(), sizeof(pm_bucket*)<<metadata->global_depth, PMEM_FILE_CREATE, 0666, &virtual_address_len, &is_pmem);
+
+    //读入metadata
+    name = std::string(PERSIST_PATH) + std::string("metadata");
+    size_t metadata_len;
+    metadata = (ehash_metadata*)pmem_map_file(name.c_str(), sizeof(ehash_metadata), PMEM_FILE_CREATE, 0666, &metadata_len, &is_pmem);
+
+    int page_num = metadata->max_file_id;
+    metadata->max_file_id = 0;
+    for(int i = 0;i < page_num;i++){
+        allocNewPage();
+    }
 }
 
 /**
@@ -470,6 +492,25 @@ void PmEHash::mapAllPage() {
  * @return: NULL
  */
 void PmEHash::selfDestory() {
-    system("rm -rf /mnt/pmemdir/data");
-    system("mkdir /mnt/pmemdir/data");
+    // system("rm -rf /mnt/pmemdir/data");
+    // system("mkdir /mnt/pmemdir/data");
+
+    //删除data_page
+    for(int i = 1;i <= metadata->max_file_id;i++){
+        std::string name = std::string(PERSIST_PATH) + std::to_string(i);
+        delete_page(name);
+
+    }
+
+    //删除/mnt/pmemdir/metadata
+    std::string name = std::string(PERSIST_PATH) + std::string("metadata");
+    delete_page(name);
+
+    //删除/mnt/pmemdir/pm_address
+    name = std::string(PERSIST_PATH) + std::string("pm_address");
+    delete_page(name);
+
+    //删除/mnt/pmemdir/pm_bucket*
+    name = std::string(PERSIST_PATH) + std::string("pm_bucket");
+    delete_page(name);
 }

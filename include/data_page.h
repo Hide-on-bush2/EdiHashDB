@@ -1,6 +1,7 @@
 #include<queue>
 #include<stdint.h>
 #include<memory.h>
+#include<string>
 #ifndef DATA_PAGE
 #define DATA_PAGE
 
@@ -14,6 +15,7 @@
 
 
 using std::queue;
+using std::string;
 // using std::map;
 
 /*
@@ -64,7 +66,7 @@ struct data_page{
 };
 
 data_page* create_new_page(uint32_t id);
-bool delete_page(uint32_t id);
+bool delete_page(string name);
 // void init_page_from_file();
 // void write_page_to_file();
 

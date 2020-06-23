@@ -10,7 +10,6 @@
 #include <cstdlib>
 #include"../include/data_page.h"
 #include<stdint.h>
-#include<stdio.h>
 #include<string>
 #include<iostream>
 
@@ -73,8 +72,7 @@ void init_page_from_file() {
 /*
  @删除持久内存某一页
  */
-bool delete_page(uint32_t id) {
-    auto name = std::string(PERSIST_PATH) + to_string(id);
+bool delete_page(string name){
     if(remove(name.c_str())==0){
     	printf("delete success\n");
     	return true;
