@@ -1,3 +1,4 @@
+  
 #include"../include/pm_ehash.h"
 #include"../include/data_page.h"
 #include<algorithm>
@@ -105,17 +106,19 @@ PmEHash::~PmEHash() {
         pmem_persist(page, sizeof(data_page));
         //pmem_unmap(page, sizeof(data_page));
     }
-
+    /*puts("----------------------------1");
     pmem_persist(catalog->buckets_virtual_address, sizeof(pm_bucket*)*DEFAULT_CATALOG_SIZE);
     pmem_unmap(catalog->buckets_virtual_address, sizeof(pm_bucket*)*DEFAULT_CATALOG_SIZE);
+    puts("----------------------------2");
 
     pmem_persist(metadata, sizeof(ehash_metadata));
     pmem_unmap(metadata, sizeof(ehash_metadata));
+    puts("----------------------------3");
 
     for(auto page : data_page_list){
         pmem_persist(page, sizeof(data_page));
         pmem_unmap(page, sizeof(data_page));
-    }
+    }*/
 }
 
 /**
