@@ -3,3 +3,6 @@
 .vscode/
 bin/
 obj/
+src/main
+src/ycsb
+workloads/data_generator
