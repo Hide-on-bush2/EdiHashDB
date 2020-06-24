@@ -19,7 +19,7 @@
     |-- images
         |-- gtest.png
         |-- ycsb(persist).png
-        |-- ycsb(not persist)
+        |-- ycsb(not persist).png
     |-- include 
         |-- data_page.h
         |-- pm_ehash.h
