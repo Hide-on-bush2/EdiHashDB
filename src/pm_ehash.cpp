@@ -6,9 +6,11 @@
 #include <string>
 #include<fstream>
 #include <set>
+#include <iostream>
 
 using std::swap;
 using std::string;
+using namespace std;
 // using std::assert;
 
 // bool is_full(const bool bit_map[], int size) {
@@ -78,7 +80,6 @@ PmEHash::PmEHash() {
         pm_address* buckets_address = (pm_address*)pmem_map_file(name.c_str(), sizeof(pm_address)*DEFAULT_CATALOG_SIZE, PMEM_FILE_CREATE, 0666, &pm_address_len, &is_pmem);
         name = Env::get_path() + std::string("pm_bucket");
         pm_bucket** virtual_address = (pm_bucket**)pmem_map_file(name.c_str(), sizeof(pm_bucket*)*DEFAULT_CATALOG_SIZE, PMEM_FILE_CREATE, 0666, &virtual_address_len, &is_pmem);
-
         // pm_address* buckets_address = new pm_address[DEFAULT_CATALOG_SIZE];
         // pm_bucket** virtual_address = new pm_bucket*[DEFAULT_CATALOG_SIZE];
         for(int i = 0;i < DEFAULT_CATALOG_SIZE;i++){
