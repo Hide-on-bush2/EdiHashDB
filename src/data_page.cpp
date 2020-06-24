@@ -104,9 +104,10 @@ string Env::get_path() {
             path = std::string(v);
             if (path[path.size() - 1] != '/')
                 path += '/';
+        } else {
+            path = "./data/";
         }
         hasInit = true;
     }
-    if (path == "") return "./data/";
-    else return path;
+    return path;
 }
