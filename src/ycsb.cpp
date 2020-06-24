@@ -175,7 +175,6 @@ void test_pm_ehash(std::string load, std::string run)
     read_ycsb(load, key, opcode);
 
     clock_gettime(CLOCK_MONOTONIC, &start);
-
     operate_pm_ehash(pmehash, key, opcode, inserted, read, updated, deleted);
 
     clock_gettime(CLOCK_MONOTONIC, &finish);
@@ -216,6 +215,6 @@ void test_pm_ehash(std::string load, std::string run)
 int main(int argc, char **argv)
 {
     srand(time(NULL));
-    test_pm_ehash("../workloads/" + std::string(argv[1]) + "-load.txt", "../workloads/" + std::string(argv[1]) + "-run.txt");
+    test_pm_ehash("./workloads/" + std::string(argv[1]) + "-load.txt", "./workloads/" + std::string(argv[1]) + "-run.txt");
     return 0;
 }
