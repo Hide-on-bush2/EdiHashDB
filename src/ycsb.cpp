@@ -36,38 +36,20 @@ void operate_pm_ehash(PmEHash *pm, vector<uint64_t> *keys, vector<char> *opcode,
                       uint64_t &read, uint64_t &updated, uint64_t &deleted)
 {
     uint64_t key, value;
-    int flag = 0;
     int result;
     kv temp_kv;
     uint64_t n = keys->size();
+
+#ifdef SINGLE_STEP
     struct timespec start, finish;
+#endif
     double single_time;
-    clock_gettime(CLOCK_MONOTONIC, &start);
     for (int i = 0; i < n; ++i)
     {
         key = (*keys)[i];
-        if ((*opcode)[i] == 'U' && (*opcode)[i - 1] == 'I') {
-            clock_gettime(CLOCK_MONOTONIC, &finish);
-            single_time = (finish.tv_sec - start.tv_sec) * 1000000000.0 +
-                  (finish.tv_nsec - start.tv_nsec);
-            printf("Insert time cost: %fs\n", single_time / 1000000000.0);
-            clock_gettime(CLOCK_MONOTONIC, &start);
-        }
-        else if ((*opcode)[i] == 'R' && (*opcode)[i - 1] == 'U') {
-            flag = 1;
-            clock_gettime(CLOCK_MONOTONIC, &finish);
-            single_time = (finish.tv_sec - start.tv_sec) * 1000000000.0 +
-                  (finish.tv_nsec - start.tv_nsec);
-            printf("Update time cost: %fs\n", single_time / 1000000000.0);
-            clock_gettime(CLOCK_MONOTONIC, &start);
-        }
-        else if ((*opcode)[i] == 'D' && (*opcode)[i - 1] == 'R') {
-            clock_gettime(CLOCK_MONOTONIC, &finish);
-            single_time = (finish.tv_sec - start.tv_sec) * 1000000000.0 +
-                  (finish.tv_nsec - start.tv_nsec);
-            printf("Read time cost: %fs\n", single_time / 1000000000.0);
-            clock_gettime(CLOCK_MONOTONIC, &start);
-        }
+#ifdef SINGLE_STEP
+        clock_gettime(CLOCK_MONOTONIC, &start);
+#endif
         switch ((*opcode)[i])
         {
         case 'I':
@@ -90,9 +72,11 @@ void operate_pm_ehash(PmEHash *pm, vector<uint64_t> *keys, vector<char> *opcode,
                     printError("Insert", result, 0, key);
                 }
             }*/
+#ifdef SINGLE_STEP
+            printf("Insert ");
+#endif
             break;
         case 'U':
-            
             ++updated;
             temp_kv.key = key;
             temp_kv.value = random() + 1;
@@ -112,6 +96,9 @@ void operate_pm_ehash(PmEHash *pm, vector<uint64_t> *keys, vector<char> *opcode,
                     printError("Update", result, -1, key);
                 }
             }*/
+#ifdef SINGLE_STEP
+            printf("Update ");
+#endif
             break;
         case 'R':
             ++read;
@@ -134,6 +121,9 @@ void operate_pm_ehash(PmEHash *pm, vector<uint64_t> *keys, vector<char> *opcode,
                     printError("Read", result, -1, key);
                 }
             }*/
+#ifdef SINGLE_STEP
+            printf("Read ");
+#endif
             break;
         case 'D':
             ++deleted;
@@ -153,23 +143,24 @@ void operate_pm_ehash(PmEHash *pm, vector<uint64_t> *keys, vector<char> *opcode,
                     printError("Delete", result, -1, key);
                 }
             }*/
+#ifdef SINGLE_STEP
+            printf("Delete ");
+#endif
             break;
         default:
             break;
         }
+#ifdef SINGLE_STEP
+        clock_gettime(CLOCK_MONOTONIC, &finish);
+        printf("time cost: %fms\n", ((finish.tv_sec - start.tv_sec) * 1000000000.0 +
+            (finish.tv_nsec - start.tv_nsec)) / 1000000.0);
+#endif
     }
-    if (flag) {
-      clock_gettime(CLOCK_MONOTONIC, &finish);
-    single_time = (finish.tv_sec - start.tv_sec) * 1000000000.0 +
-                  (finish.tv_nsec - start.tv_nsec);
-            printf("Delete time cost: %fs\n", single_time / 1000000000.0);  
-    }
-    
 }
 
 void test_pm_ehash(std::string load, std::string run)
 {
-    PmEHash pmehash;
+    PmEHash* pmehash = new PmEHash();
     uint64_t inserted = 0, read = 0, updated = 0, deleted = 0, t = 0;
     vector<uint64_t> *key = new vector<uint64_t>();
     vector<char> *opcode = new vector<char>();
@@ -185,7 +176,7 @@ void test_pm_ehash(std::string load, std::string run)
 
     clock_gettime(CLOCK_MONOTONIC, &start);
 
-    operate_pm_ehash(&pmehash, key, opcode, inserted, read, updated, deleted);
+    operate_pm_ehash(pmehash, key, opcode, inserted, read, updated, deleted);
 
     clock_gettime(CLOCK_MONOTONIC, &finish);
     single_time = (finish.tv_sec - start.tv_sec) * 1000000000.0 +
@@ -203,7 +194,7 @@ void test_pm_ehash(std::string load, std::string run)
 
     clock_gettime(CLOCK_MONOTONIC, &start);
 
-    operate_pm_ehash(&pmehash, key, opcode, inserted, read, updated, deleted);
+    operate_pm_ehash(pmehash, key, opcode, inserted, read, updated, deleted);
 
     operation_num = inserted + read + updated + deleted;
 
@@ -218,7 +209,8 @@ void test_pm_ehash(std::string load, std::string run)
     printf("Throughput: %f operations per second \n", operation_num / single_time);
     delete key;
     delete opcode;
-    pmehash.selfDestory();
+    pmehash->selfDestory();
+    delete pmehash;
 }
 
 int main(int argc, char **argv)
