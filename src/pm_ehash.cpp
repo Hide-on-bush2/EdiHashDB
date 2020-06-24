@@ -5,6 +5,7 @@
 #include <assert.h>
 #include <string>
 #include<fstream>
+#include <set>
 
 using std::swap;
 using std::string;
@@ -108,7 +109,10 @@ PmEHash::~PmEHash() {
     pmem_unmap(catalog->buckets_virtual_address, sizeof(pm_bucket*)*metadata->catalog_size);
     pmem_persist(metadata, sizeof(ehash_metadata));
     pmem_unmap(metadata, sizeof(ehash_metadata));
+    std::set<data_page*> hashSet;
     for(auto page : data_page_list){
+        if (hashSet.count(page) > 0) continue;
+        hashSet.insert(page);
         pmem_persist(page, sizeof(data_page));
         pmem_unmap(page, sizeof(data_page));
     }

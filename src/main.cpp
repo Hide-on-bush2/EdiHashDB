@@ -21,6 +21,7 @@ int main(){
     result = ehash->search(0, val);
     assert(result==-1);
     ehash->selfDestory();
+    delete ehash;
     
 	return 0;
 }
