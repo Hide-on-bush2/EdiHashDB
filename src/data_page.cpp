@@ -17,7 +17,7 @@ using namespace std;
 // 数据页表的相关操作实现都放在这个源文件下，如PmEHash申请新的数据页和删除数据页的底层实现
 
 data_page* create_new_page(uint32_t id){
-    std::string name = std::string(PERSIST_PATH) + to_string(id);
+    std::string name = Env::get_path() + to_string(id);
     size_t map_len;
     int is_pmem;  
     
@@ -45,7 +45,7 @@ void init_page_from_file() {
     // int is_pmem;
 
     // for (int i = 0; i < MAX_PAGE_NUM; i++) {
-    //     auto name = std::string(PERSIST_PATH) + to_string(i);
+    //     auto name = Env::get_path() + to_string(i);
     //     _file = fopen(name.c_str(), "rb");
     //     if (_file) {                           //代表这一页是存在的是存在的
     //         data_page* new_page = (data_page*)pmem_map_file(name.c_str(), sizeof(data_page), PMEM_FILE_CREATE, 0666, &map_len, &is_pmem);
@@ -92,4 +92,19 @@ pm_bucket* get_free_bucket(data_page* t_page){
         }
     }
     return NULL;
+}
+
+string Env::path = "";
+bool Env::hasInit = false;
+
+string Env::get_path() {
+    if (!hasInit) {
+        char* v = std::getenv("PERSIST_PATH");
+        if (v != NULL) {
+            path = std::string(v);
+        }
+        hasInit = true;
+    }
+    if (path == "") return "./data/";
+    else return path;
 }

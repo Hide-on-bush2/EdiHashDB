@@ -10,7 +10,6 @@
 #define DEFAULT_CATALOG_SIZE      16
 #define DEFAULT_GLOBAL_DEPTH 4
 #define MAX_PAGE_NUM             1000        //定义最大的页面数为1000
-#define PERSIST_PATH             "/mnt/pmemdir/data/"
 #define PM_EHASH_DIRECTORY        "";        // add your own directory path to store the pm_ehash
 
 
@@ -63,6 +62,14 @@ struct data_page{
         //     free_list.push(&(buckets[i]));
         // }
     }
+};
+
+class Env {
+private:
+    static string path;
+    static bool hasInit;
+public:
+    static string get_path();
 };
 
 data_page* create_new_page(uint32_t id);

@@ -53,7 +53,7 @@ using std::string;
  */
 PmEHash::PmEHash() {
     //!!!需要初始化metadata全局深度为4  所有桶局部深度也要初始化为4
-    string name = std::string(PERSIST_PATH) + std::string("metadata");
+    string name = Env::get_path() + std::string("metadata");
     //如果metadata存在 直接调用recover() 如果metadata不存在 新建所有数据库文件
     std::ifstream fin(name.c_str());
     if(fin){
@@ -68,14 +68,14 @@ PmEHash::PmEHash() {
         metadata->global_depth = DEFAULT_GLOBAL_DEPTH;
         pmem_persist(metadata, metadata_len);
         // size_t catalog_len;
-        // name = std::string(PERSIST_PATH) + std::string("catalog");
+        // name = Env::get_path() + std::string("catalog");
         // catalog = (ehash_catalog*)pmem_map_file(name.c_str(), sizeof(ehash_catalog), PMEM_FILE_CREATE, 0666, &catalog_len, &is_pmem);
         //以上成功执行
         size_t pm_address_len;
         size_t virtual_address_len;
-        name = std::string(PERSIST_PATH) + std::string("pm_address");
+        name = Env::get_path() + std::string("pm_address");
         pm_address* buckets_address = (pm_address*)pmem_map_file(name.c_str(), sizeof(pm_address)*DEFAULT_CATALOG_SIZE, PMEM_FILE_CREATE, 0666, &pm_address_len, &is_pmem);
-        name = std::string(PERSIST_PATH) + std::string("pm_bucket");
+        name = Env::get_path() + std::string("pm_bucket");
         pm_bucket** virtual_address = (pm_bucket**)pmem_map_file(name.c_str(), sizeof(pm_bucket*)*DEFAULT_CATALOG_SIZE, PMEM_FILE_CREATE, 0666, &virtual_address_len, &is_pmem);
 
         // pm_address* buckets_address = new pm_address[DEFAULT_CATALOG_SIZE];
@@ -382,13 +382,13 @@ void PmEHash::extendCatalog() {
     metadata->global_depth++;
     metadata->catalog_size *= 2;
 
-    std::string name = std::string(PERSIST_PATH) + std::string("pm_address");
+    std::string name = Env::get_path() + std::string("pm_address");
     int is_pmem;
     size_t pm_address_len;
     catalog->buckets_pm_address = (pm_address*)pmem_map_file(name.c_str(), sizeof(pm_address)<<metadata->global_depth, PMEM_FILE_CREATE, 0666, &pm_address_len, &is_pmem);
     
     size_t virtual_address_len;
-    name = std::string(PERSIST_PATH) + std::string("pm_bucket");
+    name = Env::get_path() + std::string("pm_bucket");
     catalog->buckets_virtual_address = (pm_bucket**)pmem_map_file(name.c_str(), sizeof(pm_bucket*)<<metadata->global_depth, PMEM_FILE_CREATE, 0666, &virtual_address_len, &is_pmem);
 
     for(int i=0;i<(1<<(metadata->global_depth-1));i++){
@@ -486,17 +486,17 @@ void PmEHash::mapAllPage() {
     //读入pm_addresshe和pm_bucket两个文件，并将映射的指针赋值给catalog
     // catalog = new ehash_catalog;
 
-    // std::string name = std::string(PERSIST_PATH) + std::string("pm_address");
+    // std::string name = Env::get_path() + std::string("pm_address");
     // int is_pmem;
     // size_t pm_address_len;
     // catalog->buckets_pm_address = (pm_address*)pmem_map_file(name.c_str(), sizeof(pm_address)<<metadata->global_depth, PMEM_FILE_CREATE, 0666, &pm_address_len, &is_pmem);
     
     // size_t virtual_address_len;
-    // name = std::string(PERSIST_PATH) + std::string("pm_bucket");
+    // name = Env::get_path() + std::string("pm_bucket");
     // catalog->buckets_virtual_address = (pm_bucket**)pmem_map_file(name.c_str(), sizeof(pm_bucket*)<<metadata->global_depth, PMEM_FILE_CREATE, 0666, &virtual_address_len, &is_pmem);
 
     //读入metadata
-    std::string name = std::string(PERSIST_PATH) + std::string("metadata");
+    std::string name = Env::get_path() + std::string("metadata");
     size_t metadata_len;
     int is_pmem;
     metadata = (ehash_metadata*)pmem_map_file(name.c_str(), sizeof(ehash_metadata), PMEM_FILE_CREATE, 0666, &metadata_len, &is_pmem);
@@ -506,7 +506,7 @@ void PmEHash::mapAllPage() {
 
     uint64_t page_num = metadata->max_file_id;
     for(int i = 1;i <= page_num;i++){
-       name = std::string(PERSIST_PATH) + std::to_string(i);
+       name = Env::get_path() + std::to_string(i);
         size_t map_len;
         data_page* old_page = (data_page*)pmem_map_file(name.c_str(), sizeof(data_page), PMEM_FILE_CREATE, 0666, &map_len, &is_pmem);
         data_page_list.push_back(old_page);
@@ -539,21 +539,21 @@ void PmEHash::selfDestory() {
     
     //删除data_page
     for(int i = 1;i <= metadata->max_file_id;i++){
-        std::string name = std::string(PERSIST_PATH) + std::to_string(i);
+        std::string name = Env::get_path() + std::to_string(i);
         delete_page(name);
 
     }
 
     //删除/mnt/pmemdir/metadata
-    std::string name = std::string(PERSIST_PATH) + std::string("metadata");
+    std::string name = Env::get_path() + std::string("metadata");
     delete_page(name);
 
     //删除/mnt/pmemdir/pm_address
-    name = std::string(PERSIST_PATH) + std::string("pm_address");
+    name = Env::get_path() + std::string("pm_address");
     delete_page(name);
 
     //删除/mnt/pmemdir/pm_bucket*
-    name = std::string(PERSIST_PATH) + std::string("pm_bucket");
+    name = Env::get_path() + std::string("pm_bucket");
     delete_page(name);
 }
 
