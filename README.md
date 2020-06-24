@@ -99,4 +99,6 @@ make ARG=-DSINGLE_STEP ycsb
 
 由于该统计会带来额外开销，因此默认不开启。
 
+## 项目报告
 
+[Project Report.md](04_proj_task2_report.md)
