@@ -36,6 +36,7 @@ void operate_pm_ehash(PmEHash *pm, vector<uint64_t> *keys, vector<char> *opcode,
                       uint64_t &read, uint64_t &updated, uint64_t &deleted)
 {
     uint64_t key, value;
+    int flag = 0;
     int result;
     kv temp_kv;
     uint64_t n = keys->size();
@@ -53,6 +54,7 @@ void operate_pm_ehash(PmEHash *pm, vector<uint64_t> *keys, vector<char> *opcode,
             clock_gettime(CLOCK_MONOTONIC, &start);
         }
         else if ((*opcode)[i] == 'R' && (*opcode)[i - 1] == 'U') {
+            flag = 1;
             clock_gettime(CLOCK_MONOTONIC, &finish);
             single_time = (finish.tv_sec - start.tv_sec) * 1000000000.0 +
                   (finish.tv_nsec - start.tv_nsec);
@@ -73,7 +75,7 @@ void operate_pm_ehash(PmEHash *pm, vector<uint64_t> *keys, vector<char> *opcode,
             temp_kv.key = key;
             temp_kv.value = random() + 1;
             result = pm->insert(temp_kv);
-            if (map_verifier.count(key))
+            /*if (map_verifier.count(key))
             {
                 if (result != -1)
                 {
@@ -87,7 +89,7 @@ void operate_pm_ehash(PmEHash *pm, vector<uint64_t> *keys, vector<char> *opcode,
                 {
                     printError("Insert", result, 0, key);
                 }
-            }
+            }*/
             break;
         case 'U':
             
@@ -95,7 +97,7 @@ void operate_pm_ehash(PmEHash *pm, vector<uint64_t> *keys, vector<char> *opcode,
             temp_kv.key = key;
             temp_kv.value = random() + 1;
             result = pm->update(temp_kv);
-            if (map_verifier.count(key))
+            /*if (map_verifier.count(key))
             {
                 map_verifier[key] = temp_kv.value;
                 if (result != 0)
@@ -109,12 +111,12 @@ void operate_pm_ehash(PmEHash *pm, vector<uint64_t> *keys, vector<char> *opcode,
                 {
                     printError("Update", result, -1, key);
                 }
-            }
+            }*/
             break;
         case 'R':
             ++read;
             result = pm->search(key, value);
-            if (map_verifier.count(key))
+            /*if (map_verifier.count(key))
             {
                 if (result != 0)
                 {
@@ -131,12 +133,12 @@ void operate_pm_ehash(PmEHash *pm, vector<uint64_t> *keys, vector<char> *opcode,
                 {
                     printError("Read", result, -1, key);
                 }
-            }
+            }*/
             break;
         case 'D':
             ++deleted;
             result = pm->remove(key);
-            if (map_verifier.count(key))
+            /*if (map_verifier.count(key))
             {
                 map_verifier.erase(key);
                 if (result != 0)
@@ -150,16 +152,19 @@ void operate_pm_ehash(PmEHash *pm, vector<uint64_t> *keys, vector<char> *opcode,
                 {
                     printError("Delete", result, -1, key);
                 }
-            }
+            }*/
             break;
         default:
             break;
         }
     }
-    clock_gettime(CLOCK_MONOTONIC, &finish);
+    if (flag) {
+      clock_gettime(CLOCK_MONOTONIC, &finish);
     single_time = (finish.tv_sec - start.tv_sec) * 1000000000.0 +
                   (finish.tv_nsec - start.tv_nsec);
-            printf("Delete time cost: %fs\n", single_time / 1000000000.0);
+            printf("Delete time cost: %fs\n", single_time / 1000000000.0);  
+    }
+    
 }
 
 void test_pm_ehash(std::string load, std::string run)
