@@ -112,7 +112,6 @@ PmEHash::~PmEHash() {
         pmem_persist(page, sizeof(data_page));
         pmem_unmap(page, sizeof(data_page));
     }
-    
 }
 
 /**
