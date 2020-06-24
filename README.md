@@ -18,7 +18,8 @@
     |-- gtest
     |-- images
         |-- gtest.png
-        |-- ycsb.png
+        |-- ycsb(persist).png
+        |-- ycsb(not persist)
     |-- include 
         |-- data_page.h
         |-- pm_ehash.h
