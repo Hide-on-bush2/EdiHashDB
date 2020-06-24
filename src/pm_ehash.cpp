@@ -103,16 +103,14 @@ PmEHash::~PmEHash() {
     //是不是析构函数只需要unmap就行了?
     // pmem_persist(catalog, sizeof(ehash_catalog));
     // pmem_unmap(catalog, sizeof(ehash_catalog));
+    if (disposed) return;
     pmem_persist(catalog->buckets_pm_address, sizeof(pm_address)*metadata->catalog_size);
     pmem_unmap(catalog->buckets_pm_address, sizeof(pm_address)*metadata->catalog_size);
     pmem_persist(catalog->buckets_virtual_address, sizeof(pm_bucket*)*metadata->catalog_size);
     pmem_unmap(catalog->buckets_virtual_address, sizeof(pm_bucket*)*metadata->catalog_size);
     pmem_persist(metadata, sizeof(ehash_metadata));
     pmem_unmap(metadata, sizeof(ehash_metadata));
-    std::set<data_page*> hashSet;
     for(auto page : data_page_list){
-        if (hashSet.count(page) > 0) continue;
-        hashSet.insert(page);
         pmem_persist(page, sizeof(data_page));
         pmem_unmap(page, sizeof(data_page));
     }
@@ -457,8 +455,8 @@ void PmEHash::allocNewPage() {
         new_address.offset = i*sizeof(pm_bucket);
         vAddr2pmAddr[&new_page->buckets[i]] = new_address;
         pmAddr2vAddr[new_address] = &new_page->buckets[i];
-        data_page_list.push_back(new_page);
     }
+    data_page_list.push_back(new_page);
 }
 
 /**
@@ -539,7 +537,7 @@ void PmEHash::mapAllPage() {
 void PmEHash::selfDestory() {
     // system("rm -rf /mnt/pmemdir/data");
     // system("mkdir /mnt/pmemdir/data");
-    
+
     //删除data_page
     for(int i = 1;i <= metadata->max_file_id;i++){
         std::string name = Env::get_path() + std::to_string(i);
@@ -558,6 +556,20 @@ void PmEHash::selfDestory() {
     //删除/mnt/pmemdir/pm_bucket*
     name = Env::get_path() + std::string("pm_bucket");
     delete_page(name);
+    
+    if (!disposed) {
+        pmem_persist(catalog->buckets_pm_address, sizeof(pm_address)*metadata->catalog_size);
+        pmem_unmap(catalog->buckets_pm_address, sizeof(pm_address)*metadata->catalog_size);
+        pmem_persist(catalog->buckets_virtual_address, sizeof(pm_bucket*)*metadata->catalog_size);
+        pmem_unmap(catalog->buckets_virtual_address, sizeof(pm_bucket*)*metadata->catalog_size);
+        pmem_persist(metadata, sizeof(ehash_metadata));
+        pmem_unmap(metadata, sizeof(ehash_metadata));
+        for(auto page : data_page_list){
+            pmem_persist(page, sizeof(data_page));
+            pmem_unmap(page, sizeof(data_page));
+        }
+        disposed = true;
+    }
 }
 
 void PmEHash::persistAll(){

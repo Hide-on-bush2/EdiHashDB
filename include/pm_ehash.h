@@ -51,7 +51,7 @@ typedef struct ehash_metadata
 class PmEHash
 {
 private:
-
+    bool disposed = false;
     ehash_metadata*                               metadata;                    // virtual address of metadata, mapping the metadata file
     ehash_catalog*                                      catalog;                        // the catalog of hash
 
