@@ -102,6 +102,8 @@ string Env::get_path() {
         char* v = std::getenv("PERSIST_PATH");
         if (v != NULL) {
             path = std::string(v);
+            if (path[path.size() - 1] != '/')
+                path += '/';
         }
         hasInit = true;
     }
