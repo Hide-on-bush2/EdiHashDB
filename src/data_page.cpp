@@ -38,18 +38,16 @@ data_page* create_new_page(uint32_t id){
 
 
 /*
- @删除持久内存某一页
- */
-/*
- @删除持久内存某一页
+ @删除持久内存某一数据文件
  */
 bool delete_page(string name){
+    printf("delete %s\n",name.c_str());
     if(remove(name.c_str())==0){
-    	// printf("delete success\n");
+    	printf("delete success\n");
     	return true;
     }
     else{
-    	// printf("delete failure\n");
+    	printf("delete failure\n");
     	return false;
     }
 }

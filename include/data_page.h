@@ -34,7 +34,7 @@ typedef struct kv
 // };
 typedef struct pm_bucket
 {
-    char local_depth;//记录局部深度  一个字节空间足够记录
+    int local_depth;//记录局部深度  
     bool  bitmap[BUCKET_SLOT_NUM];      // one bit for each slot
     kv       slot[BUCKET_SLOT_NUM];                                // one slot for one kv-pair
     pm_bucket(){

@@ -17,3 +17,5 @@ pm_ehash.o:../include/pm_ehash.h pm_ehash.cpp ../include/data_page.h
 
 clean:
 	rm -r *.o ycsb
+
+.PHONY: clean

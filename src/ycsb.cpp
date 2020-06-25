@@ -205,7 +205,7 @@ void test_pm_ehash(std::string load, std::string run)
     clock_gettime(CLOCK_MONOTONIC, &finish);
     single_time = (finish.tv_sec - start.tv_sec) +
                   (finish.tv_nsec - start.tv_nsec) / 1000000000.0;
-    printf("Run phase finished: %lu operations proceeded\n", operation_num);
+    printf("Run phase finished: %d operations proceeded\n", operation_num);
     printf("%lu items inserted\n", inserted);
     printf("%lu items read\n", read);
     printf("%lu items updated\n", updated);

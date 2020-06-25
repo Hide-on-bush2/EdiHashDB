@@ -17,5 +17,7 @@ data_page.o:$(INCLUDE)data_page.h $(SRC)data_page.cpp
 pm_ehash.o:$(INCLUDE)pm_ehash.h $(SRC)pm_ehash.cpp $(INCLUDE)data_page.h
 	g++ -c $(SRC)pm_ehash.cpp $(FLAGES)
 
+.PHONY: clean
+
 clean:
 	rm -r *.o ycsb
