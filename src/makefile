@@ -1,4 +1,4 @@
-FLAGES = -std=c++11 -lpmem -g
+FLAGES = -std=c++11 -lpmem -O3
 
 all:main.o data_page.o pm_ehash.o
 	g++ main.o data_page.o pm_ehash.o -o main $(FLAGES)
