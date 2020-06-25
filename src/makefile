@@ -6,9 +6,9 @@ all:main.o data_page.o pm_ehash.o
 ycsb:ycsb.o data_page.o pm_ehash.o
 	g++ ycsb.o data_page.o pm_ehash.o -o ycsb $(FLAGES)
 
-ycsb.o:pm_ehash.o
+ycsb.o:pm_ehash.o ycsb.cpp
 	g++ -c ycsb.cpp $(FLAGES) $(ARG)
-main.o:pm_ehash.o
+main.o:pm_ehash.o main.cpp
 	g++ -c main.cpp $(FLAGES)
 data_page.o:../include/data_page.h data_page.cpp
 	g++ -c data_page.cpp $(FLAGES)
