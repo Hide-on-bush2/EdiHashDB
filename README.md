@@ -44,17 +44,15 @@ export PERSIST_PATH=/mnt/pmemdir/data/
 
 ## gtest运行说明
 
-如果项目根目录下没有**data**文件夹的话，请先在根目录执行    
-
+首先将 `PERSIST_PATH` 设置为持久化数据目录并创建该目录，如：
 ``` bash
-mkdir data
+export PERSIST_PATH=/mnt/pmemdir/data/
+mkdir $PERSIST_PATH
 ```
 
-来创建本次实验需要的持久数据目录。  
-进入**test**文件夹下,执行
+创建好本次实验需要的持久数据目录后，进入**test**文件夹下,执行
 
 ``` bash
-export PERSIST_PATH=../data/
 make
 ./bin/ehash_test
 ```
