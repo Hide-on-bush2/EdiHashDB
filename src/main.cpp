@@ -8,6 +8,8 @@ int main(){
 	// printf("page id: %d\n", new_page->page_id);
 	// delete_page(1);
 	// printf("page id: %d\n", new_page->page_id);
+
+    //测试功能是否正常
 	PmEHash* ehash = new PmEHash;
     kv temp;
     temp.key = temp.value = 1;

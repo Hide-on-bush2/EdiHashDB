@@ -1,53 +1,34 @@
   
-#include"../include/pm_ehash.h"
-#include"../include/data_page.h"
-#include<algorithm>
+#include "../include/pm_ehash.h"
+#include "../include/data_page.h"
+#include <algorithm>
 #include <assert.h>
+#include <sys/stat.h>
+#include <unistd.h>
 #include <string>
-#include<fstream>
+#include <fstream>
 #include <set>
 #include <iostream>
+#include <stdlib.h>
 
-using std::swap;
-using std::string;
 using namespace std;
-// using std::assert;
 
-// bool is_full(const bool bit_map[], int size) {
-//     for (int i = 0; i < size; i++) {
-//         if (bit_map[i] == 0) {
-//             return false;
-//         }
-//     }
-
-//     return true;
-// }
-
-// uint64_t get_page_id(uint64_t bucket_id) {
-//     uint_64 page_id;
-
-//     return page_id;
-// }
-
-// uint64_t get_bucket_offset(uint64_t bucket_id) {
-//     uint_64 bucket_offset;
-
-//     return bucket_offset;
-// }
-
-// pm_bucket* PmEHash::get_bucket_head_address(uint64_t key) {        //得到一个键值要插入的目标桶的首地址
-//     uint64_t bucket_id = hashFunc(key);
-//     uint64_t page_id = get_page_id(bucket_id);
-//     uint64_t bucket_offset = get_bucket_offset(bucket_id);
-
-//     for (auto itor : page_record) {
-//         if (itor->page_id == page_id) {
-//             return &(itor->buckets[bucket_offset]);
-//         }
-//     }
-
-//     return NULL;
-// }
+int makeDirectory(string path){//如果存储数据的文件夹不存在则创建目录
+	char tempDirectoryPath[256] = {0};
+    int len = path.length();
+	for (int i = 0; i < len; i++)
+	{
+		tempDirectoryPath[i] = path[i];
+		if (tempDirectoryPath[i] == '/')
+		{
+			if (access(tempDirectoryPath, F_OK))
+			{
+				if (mkdir(tempDirectoryPath, 0777) == -1) return -1;
+			}
+		}
+	}
+	return 0;
+}
 
 /**
  * @description: construct a new instance of PmEHash in a default directory
@@ -55,7 +36,12 @@ using namespace std;
  * @return: new instance of PmEHash
  */
 PmEHash::PmEHash() {
-    //!!!需要初始化metadata全局深度为4  所有桶局部深度也要初始化为4
+    printf("Create new PmEHash instance.\nThe data path is : %s\n",Env::get_path().c_str());
+    if (makeDirectory(Env::get_path())){
+        printf("Configuration Error: Persistent memory path error or lack of permission. Please reconfigure.\n");
+        exit(1);        
+    }
+    
     string name = Env::get_path() + std::string("metadata");
     //如果metadata存在 直接调用recover() 如果metadata不存在 新建所有数据库文件
     std::ifstream fin(name.c_str());
@@ -66,6 +52,11 @@ PmEHash::PmEHash() {
         int is_pmem;
         size_t metadata_len;
         metadata = (ehash_metadata*)pmem_map_file(name.c_str(), sizeof(ehash_metadata), PMEM_FILE_CREATE, 0666, &metadata_len, &is_pmem);
+        if (metadata==NULL){
+            printf("Configuration Error: Persistent memory path error or lack of permission. Please reconfigure.\n");
+            exit(1);
+        }
+        //!!!需要初始化metadata全局深度为4  所有桶局部深度也要初始化为4
         metadata->catalog_size = DEFAULT_CATALOG_SIZE;
         metadata->max_file_id = 0;
         metadata->global_depth = DEFAULT_GLOBAL_DEPTH;
@@ -115,6 +106,7 @@ PmEHash::~PmEHash() {
         pmem_persist(page, sizeof(data_page));
         pmem_unmap(page, sizeof(data_page));
     }
+    printf("PmEHash instance was deconstructed. Bye~\n");
 }
 
 /**
@@ -466,18 +458,20 @@ void PmEHash::allocNewPage() {
  * @return: NULL
  */
 void PmEHash::recover() {
-    // init_page_from_file();
+
+    //读入metadata
+    std::string name = Env::get_path() + std::string("metadata");
+    size_t metadata_len;
+    int is_pmem;
+    metadata = (ehash_metadata*)pmem_map_file(name.c_str(), sizeof(ehash_metadata), PMEM_FILE_CREATE, 0666, &metadata_len, &is_pmem);
+    if (metadata==NULL){
+        printf("Configuration Error: Persistent memory path error or lack of permission. Please reconfigure.\n");
+        exit(1);
+    } 
+
+    //读入所有数据页并建立映射
     mapAllPage();
 }
-
-// bool isFullPage(data_page* page){
-//     for(int i = 0;i < DATA_PAGE_SLOT_NUM;i++){
-//         if(page->bit_map[i] == 0){
-//             return false;
-//         }
-//     }
-//     return true;
-// }
 
 /**
  * @description: 重启时，将所有数据页进行内存映射，设置地址间的映射关系，空闲的和使用的槽位都需要设置 
@@ -497,11 +491,9 @@ void PmEHash::mapAllPage() {
     // name = Env::get_path() + std::string("pm_bucket");
     // catalog->buckets_virtual_address = (pm_bucket**)pmem_map_file(name.c_str(), sizeof(pm_bucket*)<<metadata->global_depth, PMEM_FILE_CREATE, 0666, &virtual_address_len, &is_pmem);
 
-    //读入metadata
-    std::string name = Env::get_path() + std::string("metadata");
+    std::string name;
     size_t metadata_len;
     int is_pmem;
-    metadata = (ehash_metadata*)pmem_map_file(name.c_str(), sizeof(ehash_metadata), PMEM_FILE_CREATE, 0666, &metadata_len, &is_pmem);
 
     pm_address* buckets_address = new pm_address[metadata->catalog_size];
     pm_bucket** virtual_address = new  pm_bucket*[metadata->catalog_size];

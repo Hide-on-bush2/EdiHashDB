@@ -11,6 +11,10 @@ using namespace std;
 void read_ycsb(const string &fn, vector<uint64_t> *keys, vector<char> *opcode)
 {
     FILE *fp = fopen(fn.c_str(), "r");
+    if (fp==NULL){
+        printf("Open file failed:%s\n",fn.c_str());
+        exit(1);
+    }
     char op[8];
     uint64_t key;
     while (true)
@@ -160,6 +164,7 @@ void operate_pm_ehash(PmEHash *pm, vector<uint64_t> *keys, vector<char> *opcode,
 
 void test_pm_ehash(std::string load, std::string run)
 {
+
     PmEHash* pmehash = new PmEHash();
     uint64_t inserted = 0, read = 0, updated = 0, deleted = 0, t = 0;
     vector<uint64_t> *key = new vector<uint64_t>();

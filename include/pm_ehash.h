@@ -8,7 +8,6 @@
 #include"data_page.h"
 #include<libpmem.h>
 
-#define PM_EHASH_DIRECTORY         "/mnt/pmemdir/data/"      // add your own directory path to store the pm_ehash
 #define META_NAME                                "pm_ehash_metadata"
 #define CATALOG_NAME                        "pm_ehash_catalog"
 

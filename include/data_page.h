@@ -10,7 +10,6 @@
 #define DEFAULT_CATALOG_SIZE      16
 #define DEFAULT_GLOBAL_DEPTH 4
 #define MAX_PAGE_NUM             1000        //定义最大的页面数为1000
-#define PM_EHASH_DIRECTORY        "";        // add your own directory path to store the pm_ehash
 
 
 using std::queue;

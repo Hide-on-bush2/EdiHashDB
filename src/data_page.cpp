@@ -36,34 +36,6 @@ data_page* create_new_page(uint32_t id){
 	// return old_page;
 }
 
-/*
- @*程序开始运行时，将所有在持久化内存中的数据读入
- */
-void init_page_from_file() {
-    // FILE* _file = nullptr;
-    // size_t map_len;
-    // int is_pmem;
-
-    // for (int i = 0; i < MAX_PAGE_NUM; i++) {
-    //     auto name = Env::get_path() + to_string(i);
-    //     _file = fopen(name.c_str(), "rb");
-    //     if (_file) {                           //代表这一页是存在的是存在的
-    //         data_page* new_page = (data_page*)pmem_map_file(name.c_str(), sizeof(data_page), PMEM_FILE_CREATE, 0666, &map_len, &is_pmem);
-    //         page_record.push_back(new_page);
-    //     }
-    //     fclose(_file);
-    // }
-
-}
-
-/*
- @在程序结束后，将所有的页写到持久内存中去
- */
-// void write_page_to_file() {
-//     for (auto itor : page_record) {
-//         create_new_page(itor->page_id);
-//     }
-// }
 
 /*
  @删除持久内存某一页
