@@ -1,4 +1,4 @@
-FLAGES = -std=c++11 -lpmem -O3
+FLAGES = -std=c++11 -lpmem -lpthread -O3
 INCLUDE = ./include/
 SRC = ./src/
 

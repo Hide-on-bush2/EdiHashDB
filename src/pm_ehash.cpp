@@ -59,14 +59,15 @@ PmEHash::PmEHash() {
  */
 PmEHash::~PmEHash() {
     if (!disposed){
+        sem_wait(Env::get_semaphore_sync());
         delete[] catalog->buckets_virtual_address;  
-        pmem_persist(catalog->buckets_pm_address, sizeof(pm_address)*metadata->catalog_size);
+        PersistWorker::post_persist(catalog->buckets_pm_address, sizeof(pm_address)*metadata->catalog_size);
         pmem_unmap(catalog->buckets_pm_address, sizeof(pm_address)*metadata->catalog_size);  
         delete catalog;
-        pmem_persist(metadata, sizeof(ehash_metadata));
+        PersistWorker::post_persist(metadata, sizeof(ehash_metadata));
         pmem_unmap(metadata, sizeof(ehash_metadata));
         for(auto page : data_page_list){
-            pmem_persist(page, sizeof(data_page));
+            PersistWorker::post_persist(page, sizeof(data_page));
             pmem_unmap(page, sizeof(data_page));
         }
     }
@@ -93,7 +94,7 @@ int PmEHash::insert(kv new_kv_pair) {
     tar_kv->key = new_kv_pair.key;
     tar_kv->value = new_kv_pair.value;
     //修改后需要持久化键值对
-    pmem_persist(tar_kv, sizeof(kv));
+    PersistWorker::post_persist(tar_kv, sizeof(kv));
     return 0;
 }
 
@@ -103,16 +104,16 @@ int PmEHash::insert(kv new_kv_pair) {
  * @return: 0 = removing successfully, -1 = fail to remove(target data doesn't exist)
  */
 int PmEHash::remove(uint64_t key) {
+    sem_wait(Env::get_semaphore_sync());
     int bucketid = hashFunc(key);//先找到这个key所在的桶的地址，然后遍历桶所有的kv对
              
     pm_bucket* tar_bucket=catalog->buckets_virtual_address[bucketid];
-
     bool succ=0;
     for (int i = 0; i < BUCKET_SLOT_NUM; i++) {
         if (tar_bucket->bitmap[i] && tar_bucket->slot[i].key == key) {
             tar_bucket->bitmap[i]=0;
             //修改后需要持久化
-            pmem_persist(tar_bucket->bitmap, sizeof(tar_bucket->bitmap));
+            PersistWorker::post_persist(tar_bucket->bitmap, sizeof(tar_bucket->bitmap));
             succ=1;
             break;
         }
@@ -137,7 +138,7 @@ int PmEHash::update(kv kv_pair) {
         if (tar_bucket->bitmap[i] && tar_bucket->slot[i].key == kv_pair.key) {
             tar_bucket->slot[i].value=kv_pair.value;
             //修改后需要立即持久化
-            pmem_persist(&(tar_bucket->slot[i].value), sizeof(tar_bucket->slot[i].value));
+            PersistWorker::post_persist(&(tar_bucket->slot[i].value), sizeof(tar_bucket->slot[i].value));
             return 0;
         }
     }
@@ -218,7 +219,7 @@ kv* PmEHash::getFreeKvSlot(pm_bucket* bucket) {
     for (int i = 0; i < BUCKET_SLOT_NUM; i++) {
         if (bucket->bitmap[i] == 0) {
             bucket->bitmap[i] = 1;                                  //分配这个位置
-            pmem_persist(bucket->bitmap,sizeof(bucket->bitmap));//将对bitmap的更新持久化
+            PersistWorker::post_persist(bucket->bitmap,sizeof(bucket->bitmap));//将对bitmap的更新持久化
             return &(bucket->slot[i]);
         }
     }
@@ -242,8 +243,8 @@ void PmEHash::splitBucket(uint64_t bucket_id) {
 
     int old_local_depth=sp_Bucket->local_depth;
     new_Bucket->local_depth=++sp_Bucket->local_depth;//更新桶的深度
-    pmem_persist(&(sp_Bucket->local_depth), sizeof(sp_Bucket->local_depth));//持久化桶的深度
-    pmem_persist(&(new_Bucket->local_depth), sizeof(new_Bucket->local_depth));
+    PersistWorker::post_persist(&(sp_Bucket->local_depth), sizeof(sp_Bucket->local_depth));//持久化桶的深度
+    PersistWorker::post_persist(&(new_Bucket->local_depth), sizeof(new_Bucket->local_depth));
    
     int cur=0;
     for(int i=0;i<BUCKET_SLOT_NUM;i++) if (hashFunc(sp_Bucket->slot[i].key)&(1<<old_local_depth)){
@@ -251,18 +252,18 @@ void PmEHash::splitBucket(uint64_t bucket_id) {
         new_Bucket->bitmap[cur]=1;
         new_Bucket->slot[cur].key=sp_Bucket->slot[i].key;
         new_Bucket->slot[cur].value=sp_Bucket->slot[i].value;
-        pmem_persist(&(new_Bucket->slot[cur]),sizeof(new_Bucket->slot[cur]));//将桶中的键值对持久化
+        PersistWorker::post_persist(&(new_Bucket->slot[cur]),sizeof(new_Bucket->slot[cur]));//将桶中的键值对持久化
         cur++;
     }
 
     //修改后需要持久化sp_Bucket和new_Bucket的bitmap。直接将两个桶持久化的复杂度较高
-    pmem_persist(sp_Bucket->bitmap, sizeof(sp_Bucket->bitmap));
-    pmem_persist(new_Bucket->bitmap, sizeof(new_Bucket->bitmap));
+    PersistWorker::post_persist(sp_Bucket->bitmap, sizeof(sp_Bucket->bitmap));
+    PersistWorker::post_persist(new_Bucket->bitmap, sizeof(new_Bucket->bitmap));
 
     for(int i=(bucket_id&((1<<old_local_depth)-1))|(1<<old_local_depth);i<metadata->catalog_size;i+=(1<<(old_local_depth+1))){//更新目录项，一半指向旧桶的目录项指向新桶
         catalog->buckets_pm_address[i]= new_address;
         catalog->buckets_virtual_address[i]=new_Bucket;
-        pmem_persist(&(catalog->buckets_pm_address[i]), sizeof(catalog->buckets_pm_address[i]));
+        PersistWorker::post_persist(&(catalog->buckets_pm_address[i]), sizeof(catalog->buckets_pm_address[i]));
     }
 
 }
@@ -308,12 +309,12 @@ void PmEHash::mergeBucket(uint64_t bucket_id) {
         freeEmptyBucket(catalog->buckets_virtual_address[dual_id]);//归还空间
         mer_bucket->local_depth--;//局部深度--
         //修改后需要持久化桶
-        pmem_persist(&(mer_bucket->local_depth), sizeof(mer_bucket->local_depth));
+        PersistWorker::post_persist(&(mer_bucket->local_depth), sizeof(mer_bucket->local_depth));
 
         for(int i=(bucket_id&((1<<mer_bucket->local_depth)-1))|(1<<mer_bucket->local_depth);i<metadata->catalog_size;i+=(1<<(mer_bucket->local_depth+1))){//更新目录项，将指向一个桶的目录项全部改指另一个桶
             catalog->buckets_pm_address[i]=catalog->buckets_pm_address[bucket_id];
             catalog->buckets_virtual_address[i]=catalog->buckets_virtual_address[bucket_id];
-            pmem_persist(&(catalog->buckets_pm_address[i]), sizeof(catalog->buckets_pm_address[i]));//修改后需要持久化目录  
+            PersistWorker::post_persist(&(catalog->buckets_pm_address[i]), sizeof(catalog->buckets_pm_address[i]));//修改后需要持久化目录  
         }
         
         if (mer_bucket->local_depth==1) break;
@@ -343,7 +344,7 @@ void PmEHash::extendCatalog() {
 
     metadata->global_depth++;
     metadata->catalog_size<<=1;
-    pmem_persist(metadata,sizeof(*metadata));
+    PersistWorker::post_persist(metadata,sizeof(*metadata));
 
     std::string name = Env::get_path() + std::string("catalog");
     int is_pmem;
@@ -363,7 +364,7 @@ void PmEHash::extendCatalog() {
     delete [] old_pm_bucket;
 
     //需要持久化目录        
-    pmem_persist(catalog->buckets_pm_address, sizeof(pm_address)*metadata->catalog_size);
+    PersistWorker::post_persist(catalog->buckets_pm_address, sizeof(pm_address)*metadata->catalog_size);
 
 }
 
@@ -380,7 +381,7 @@ void* PmEHash::getFreeSlot(pm_address& new_address) {
     pm_address bucket_address=vAddr2pmAddr[new_bucket];
     data_page* bucket_data_page=data_page_list[bucket_address.fileId-1];
     bucket_data_page->bit_map[bucket_address.offset/sizeof(pm_bucket)]=1;
-    pmem_persist(bucket_data_page->bit_map,sizeof(bucket_data_page->bit_map));
+    PersistWorker::post_persist(bucket_data_page->bit_map,sizeof(bucket_data_page->bit_map));
 
     free_list.pop();
     new_address = vAddr2pmAddr[new_bucket];
@@ -397,7 +398,7 @@ void PmEHash::freeEmptyBucket(pm_bucket* bucket){
     pm_address bucket_address=vAddr2pmAddr[bucket];
     data_page* bucket_data_page=data_page_list[bucket_address.fileId-1];
     bucket_data_page->bit_map[bucket_address.offset/sizeof(pm_bucket)]=0;
-    pmem_persist(bucket_data_page->bit_map,sizeof(bucket_data_page->bit_map));
+    PersistWorker::post_persist(bucket_data_page->bit_map,sizeof(bucket_data_page->bit_map));
 }
 
 /**
@@ -407,7 +408,7 @@ void PmEHash::freeEmptyBucket(pm_bucket* bucket){
  */
 void PmEHash::allocNewPage() {
     metadata->max_file_id++;
-    pmem_persist(&(metadata->max_file_id),sizeof(metadata->max_file_id));
+    PersistWorker::post_persist(&(metadata->max_file_id),sizeof(metadata->max_file_id));
     data_page* new_page=create_new_page(metadata->max_file_id);
     pm_address new_address;
     new_address.fileId = metadata->max_file_id;
@@ -497,7 +498,7 @@ void PmEHash::create(){
     metadata->catalog_size = DEFAULT_CATALOG_SIZE;
     metadata->max_file_id = 0;
     metadata->global_depth = DEFAULT_GLOBAL_DEPTH;
-    pmem_persist(metadata, metadata_len);
+    PersistWorker::post_persist(metadata, metadata_len);
 
     //创建catalog文件  建立目录与桶的映射关系
     size_t pm_address_len;
@@ -508,7 +509,7 @@ void PmEHash::create(){
         virtual_address[i]=(pm_bucket*)getFreeSlot(buckets_address[i]);
         virtual_address[i]->local_depth=4;    
     }
-    pmem_persist(buckets_address, pm_address_len);//持久化buckets_address
+    PersistWorker::post_persist(buckets_address, pm_address_len);//持久化buckets_address
 
     catalog = new ehash_catalog;
     catalog->buckets_pm_address = buckets_address;
@@ -570,14 +571,15 @@ void PmEHash::selfDestory() {
     int max_file_id=metadata->max_file_id;
     metadata->max_file_id=0;
     if (!disposed) {
+        sem_wait(Env::get_semaphore_sync());
         delete[] catalog->buckets_virtual_address;
-        pmem_persist(catalog->buckets_pm_address, sizeof(pm_address)*metadata->catalog_size);
+        PersistWorker::post_persist(catalog->buckets_pm_address, sizeof(pm_address)*metadata->catalog_size);
         pmem_unmap(catalog->buckets_pm_address, sizeof(pm_address)*metadata->catalog_size);
         delete catalog;
-        pmem_persist(metadata, sizeof(ehash_metadata));
+        PersistWorker::post_persist(metadata, sizeof(ehash_metadata));
         pmem_unmap(metadata, sizeof(ehash_metadata));
         for(auto page : data_page_list){
-            pmem_persist(page, sizeof(data_page));
+            PersistWorker::post_persist(page, sizeof(data_page));
             pmem_unmap(page, sizeof(data_page));
         }
         disposed = true;
@@ -601,11 +603,11 @@ void PmEHash::selfDestory() {
 }
 
 void PmEHash::persistAll(){
-    pmem_persist(catalog->buckets_pm_address, sizeof(pm_address)*metadata->catalog_size);
+    PersistWorker::post_persist(catalog->buckets_pm_address, sizeof(pm_address)*metadata->catalog_size);
 
-    pmem_persist(metadata, sizeof(ehash_metadata));
+    PersistWorker::post_persist(metadata, sizeof(ehash_metadata));
 
     for(auto page : data_page_list){
-        pmem_persist(page, sizeof(data_page));
+        PersistWorker::post_persist(page, sizeof(data_page));
     }
 }
