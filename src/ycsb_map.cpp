@@ -10,6 +10,7 @@ using namespace std;
 //使用了unordered_map和可扩展hash一起进行ycsb测试 将两者的每一步操作结果进行比较 验证可扩展hash的正确性
 void read_ycsb(const string &fn, vector<uint64_t> *keys, vector<char> *opcode)
 {
+    printf("Read test data %s from file.\n",fn.c_str());
     FILE *fp = fopen(fn.c_str(), "r");
     if (fp==NULL){
         printf("Open file failed:%s\n",fn.c_str());
@@ -176,9 +177,10 @@ void test_pm_ehash(std::string load, std::string run)
     double single_time;
 
     printf("Use unordered_map for correctness verification.\n");
-    printf("Load phase started\n");
 
     read_ycsb(load, key, opcode);
+
+    printf("Load phase started\n");
 
     clock_gettime(CLOCK_MONOTONIC, &start);
     operate_pm_ehash(pmehash, key, opcode, inserted, read, updated, deleted);
@@ -188,15 +190,15 @@ void test_pm_ehash(std::string load, std::string run)
                   (finish.tv_nsec - start.tv_nsec)/ 1000000000.0;
     printf("Load phase finished: %lu items inserted\n", inserted);
     printf("Time cost: %.12fs\n", single_time);
-    printf("Throughput: %f operations per second \n", inserted / single_time);
-
-    printf("\nRun phase started\n");
+    printf("Throughput: %f operations per second \n\n", inserted / single_time);
 
     int operation_num = 0;
     inserted = read = updated = deleted = 0;
     key->clear();
     opcode->clear();
     read_ycsb(run, key, opcode);
+
+    printf("Run phase started\n");
 
     clock_gettime(CLOCK_MONOTONIC, &start);
 
