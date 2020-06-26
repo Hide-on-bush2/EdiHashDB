@@ -76,6 +76,7 @@ private:
     bool haveFreeKvSlot(pm_bucket* bucket);
 
     void recover();
+    void create();
     void mapAllPage();
     void persistAll();
 

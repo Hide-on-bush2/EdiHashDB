@@ -49,34 +49,7 @@ PmEHash::PmEHash() {
         recover();
     }
     else{
-        int is_pmem;
-        size_t metadata_len;
-        metadata = (ehash_metadata*)pmem_map_file(name.c_str(), sizeof(ehash_metadata), PMEM_FILE_CREATE, 0666, &metadata_len, &is_pmem);
-        if (metadata==NULL){
-            printf("Configuration Error: Persistent memory path error or lack of permission. Please reconfigure.\n");
-            exit(1);
-        }
-        if (!is_pmem) printf("Warning: Your data path is not persistent memory. Hash table may run slowly.\n");
-        //创建metadata文件 需要初始化metadata全局深度为4  所有桶局部深度也要初始化为4
-        metadata->catalog_size = DEFAULT_CATALOG_SIZE;
-        metadata->max_file_id = 0;
-        metadata->global_depth = DEFAULT_GLOBAL_DEPTH;
-        //11pmem_persist11(metadata, metadata_len);
-
-        //创建catalog文件  建立目录与桶的映射关系
-        size_t pm_address_len;
-        name = Env::get_path() + std::string("catalog");
-        pm_address* buckets_address = (pm_address*)pmem_map_file(name.c_str(), sizeof(pm_address)*DEFAULT_CATALOG_SIZE, PMEM_FILE_CREATE, 0666, &pm_address_len, &is_pmem);
-        pm_bucket** virtual_address = new pm_bucket*[DEFAULT_CATALOG_SIZE];
-        for(int i = 0;i < DEFAULT_CATALOG_SIZE;i++){
-            virtual_address[i]=(pm_bucket*)getFreeSlot(buckets_address[i]);
-            virtual_address[i]->local_depth=4;    
-        }
-        //11pmem_persist11(buckets_address, pm_address_len);//持久化buckets_address
-
-        catalog = new ehash_catalog;
-        catalog->buckets_pm_address = buckets_address;
-        catalog->buckets_virtual_address = virtual_address;
+        create();
     }
 }
 /**
@@ -454,6 +427,8 @@ void PmEHash::allocNewPage() {
  */
 void PmEHash::recover() {
 
+    printf("Old data file exists. Try to read data files.\n");
+
     //读入metadata
     std::string name = Env::get_path() + std::string("metadata");
     size_t metadata_len;
@@ -463,10 +438,60 @@ void PmEHash::recover() {
         printf("Configuration Error: Persistent memory path error or lack of permission. Please reconfigure.\n");
         exit(1);
     } 
+
+    if (metadata->max_file_id==0){
+        printf("Data Error: Invalid data. Try to recreate data files.\n");
+        create();
+        return;
+    }
+
     if (!is_pmem) printf("Warning: Your data path is not persistent memory. Hash table may run slowly.\n");
 
     //读入所有数据页并建立映射
     mapAllPage();
+
+    printf("Data loaded successfully. Welcome~\n");
+}
+
+/**
+ * @description: 创建新的hash数据文件
+ * @param NULL
+ * @return: NULL
+ */
+void PmEHash::create(){
+    printf("Try to create data.\n");
+
+    std::string name = Env::get_path() + std::string("metadata");
+    int is_pmem;
+    size_t metadata_len;
+    metadata = (ehash_metadata*)pmem_map_file(name.c_str(), sizeof(ehash_metadata), PMEM_FILE_CREATE, 0666, &metadata_len, &is_pmem);
+    if (metadata==NULL){
+        printf("Configuration Error: Persistent memory path error or lack of permission. Please reconfigure.\n");
+        exit(1);
+    }
+    if (!is_pmem) printf("Warning: Your data path is not persistent memory. Hash table may run slowly.\n");
+    //创建metadata文件 需要初始化metadata全局深度为4  所有桶局部深度也要初始化为4
+    metadata->catalog_size = DEFAULT_CATALOG_SIZE;
+    metadata->max_file_id = 0;
+    metadata->global_depth = DEFAULT_GLOBAL_DEPTH;
+    //11pmem_persist11(metadata, metadata_len);
+
+    //创建catalog文件  建立目录与桶的映射关系
+    size_t pm_address_len;
+    name = Env::get_path() + std::string("catalog");
+    pm_address* buckets_address = (pm_address*)pmem_map_file(name.c_str(), sizeof(pm_address)*DEFAULT_CATALOG_SIZE, PMEM_FILE_CREATE, 0666, &pm_address_len, &is_pmem);
+    pm_bucket** virtual_address = new pm_bucket*[DEFAULT_CATALOG_SIZE];
+    for(int i = 0;i < DEFAULT_CATALOG_SIZE;i++){
+        virtual_address[i]=(pm_bucket*)getFreeSlot(buckets_address[i]);
+        virtual_address[i]->local_depth=4;    
+    }
+    //11pmem_persist11(buckets_address, pm_address_len);//持久化buckets_address
+
+    catalog = new ehash_catalog;
+    catalog->buckets_pm_address = buckets_address;
+    catalog->buckets_virtual_address = virtual_address;
+
+    printf("Data created successfully. Welcome~\n");
 }
 
 /**
