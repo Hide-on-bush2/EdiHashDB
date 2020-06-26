@@ -8,6 +8,7 @@
 #include <unordered_map>
 using namespace std;
 
+double insertTime,updateTime,removeTime,searchTime;
 void read_ycsb(const string &fn, vector<uint64_t> *keys, vector<char> *opcode)
 {
     printf("Read test data %s from file.\n",fn.c_str());
@@ -44,15 +45,15 @@ void operate_pm_ehash(PmEHash *pm, vector<uint64_t> *keys, vector<char> *opcode,
     int result;
     kv temp_kv;
     uint64_t n = keys->size();
-
-#ifdef SINGLE_STEP
     struct timespec start, finish;
-#endif
     double single_time;
     for (int i = 0; i < n; ++i)
     {
         key = (*keys)[i];
 #ifdef SINGLE_STEP
+        clock_gettime(CLOCK_MONOTONIC, &start);
+#endif
+#ifdef GROUP_BY_OPERATION
         clock_gettime(CLOCK_MONOTONIC, &start);
 #endif
         switch ((*opcode)[i])
@@ -160,6 +161,16 @@ void operate_pm_ehash(PmEHash *pm, vector<uint64_t> *keys, vector<char> *opcode,
         printf("time cost: %fms\n", ((finish.tv_sec - start.tv_sec) * 1000000000.0 +
             (finish.tv_nsec - start.tv_nsec)) / 1000000.0);
 #endif
+#ifdef GROUP_BY_OPERATION
+        clock_gettime(CLOCK_MONOTONIC, &finish);
+        double single_time=(finish.tv_sec - start.tv_sec)*1e9+(finish.tv_nsec - start.tv_nsec);
+        switch ((*opcode)[i]){
+            case 'I':insertTime+=single_time;break;
+            case 'U':updateTime+=single_time;break;
+            case 'D':removeTime+=single_time;break;
+            case 'R':searchTime+=single_time;break;
+        }
+#endif
     }
 }
 
@@ -195,6 +206,8 @@ void test_pm_ehash(std::string load, std::string run)
     opcode->clear();
     read_ycsb(run, key, opcode);
 
+    insertTime=updateTime=searchTime=removeTime=0;
+
     printf("Run phase started\n");
 
     clock_gettime(CLOCK_MONOTONIC, &start);
@@ -213,6 +226,12 @@ void test_pm_ehash(std::string load, std::string run)
     printf("%lu items deleted\n", deleted);
     printf("Time cost: %.12fs\n", single_time );
     printf("Throughput: %f operations per second \n", operation_num / single_time);
+#ifdef GROUP_BY_OPERATION
+    if (inserted) printf("Average insert time: %.12fs\n", insertTime*1e-9/inserted);
+    if (read) printf("Average read time: %.12fs\n", searchTime*1e-9/read);
+    if (updated) printf("Average update time: %.12fs\n", updateTime*1e-9/updated);
+    if (deleted) printf("Average delete time: %.12fs\n", removeTime*1e-9/deleted);    
+#endif    
     delete key;
     delete opcode;
     pmehash->selfDestory();

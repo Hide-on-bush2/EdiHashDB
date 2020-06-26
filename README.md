@@ -24,8 +24,11 @@
     |-- gtest
     |-- images
         |-- gtest.png
-        |-- ycsb(persist).png
-        |-- ycsb(not persist).png
+        |-- ycsb.png
+        |-- ycsb_group.png
+        |-- ycsb_map.png
+        |-- CLDB1.png
+        |-- CLDB2.png
     |-- include 
         |-- data_page.h
         |-- pm_ehash.h
@@ -100,9 +103,9 @@ make ycsb
 
 就会将 **./workloads/220w-rw-50-50-load.txt** 和 **./workloads/220w-rw-50-50-run.txt** 的数据进行测试 。
 
-构建 ycsb 时可以给 make 传入参数 `ARG=-DSINGLE_STEP` 启用单个操作的时间统计，如：
+构建 ycsb 时可以给 make 传入参数 `ARG=-DGROUP_BY_OPERATION` 启用每种操作的时间统计，如：
 ``` bash
-make ARG=-DSINGLE_STEP ycsb
+make ARG=-DGROUP_BY_OPERATION ycsb
 ./ycsb 220w-rw-50-50
 ```
 
