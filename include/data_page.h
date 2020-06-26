@@ -5,11 +5,11 @@
 #ifndef DATA_PAGE
 #define DATA_PAGE
 
-#define DATA_PAGE_SLOT_NUM 16
-#define BUCKET_SLOT_NUM               15
-#define DEFAULT_CATALOG_SIZE      16
+#define DATA_PAGE_SLOT_NUM 32
+#define BUCKET_SLOT_NUM 30
+#define DEFAULT_CATALOG_SIZE 16
 #define DEFAULT_GLOBAL_DEPTH 4
-#define MAX_PAGE_NUM             1000        //定义最大的页面数为1000
+#define MAX_PAGE_NUM 1000000        //定义最大的页面数为1000000
 
 
 using std::queue;
@@ -34,7 +34,7 @@ typedef struct kv
 // };
 typedef struct pm_bucket
 {
-    int local_depth;//记录局部深度  
+    uint32_t local_depth;//记录局部深度  
     bool  bitmap[BUCKET_SLOT_NUM];      // one bit for each slot
     kv       slot[BUCKET_SLOT_NUM];                                // one slot for one kv-pair
     pm_bucket(){

@@ -24,7 +24,7 @@ data_page* create_new_page(uint32_t id){
     data_page* new_page = (data_page*)pmem_map_file(name.c_str(), sizeof(data_page), PMEM_FILE_CREATE, 0666, &map_len, &is_pmem);
     new_page->page_id = id;
     for(int i=0;i<DATA_PAGE_SLOT_NUM;i++) new_page->bit_map[i]=0;
-    pmem_persist(new_page, map_len);
+    pmem_persist(new_page->bit_map, sizeof(new_page->bit_map));
     return new_page;
 	// printf("is_pmem:%d\n", is_pmem);
     // pmem_persist(new_page, map_len);
@@ -41,13 +41,12 @@ data_page* create_new_page(uint32_t id){
  @删除持久内存某一数据文件
  */
 bool delete_page(string name){
-    printf("delete %s\n",name.c_str());
     if(remove(name.c_str())==0){
-    	printf("delete success\n");
+    	// printf("delete success\n");
     	return true;
     }
     else{
-    	printf("delete failure\n");
+        printf("delete %s failure\n",name.c_str());
     	return false;
     }
 }

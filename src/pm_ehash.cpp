@@ -56,6 +56,7 @@ PmEHash::PmEHash() {
             printf("Configuration Error: Persistent memory path error or lack of permission. Please reconfigure.\n");
             exit(1);
         }
+        if (!is_pmem) printf("Warning: Your data path is not persistent memory. Hash table may run slowly.\n");
         //创建metadata文件 需要初始化metadata全局深度为4  所有桶局部深度也要初始化为4
         metadata->catalog_size = DEFAULT_CATALOG_SIZE;
         metadata->max_file_id = 0;
@@ -197,9 +198,11 @@ int PmEHash::search(uint64_t key, uint64_t& return_val) {
  * @return: 返回键所属的桶在目录中的编号
  */
 int PmEHash::hashFunc(uint64_t key) {
-    key=((key<<16)%998244353)*((key+10007)%1000000007)*(key<<16|(key>>48))^(key*key);//足够复杂的hash函数使得偏斜的key输入映射得到的hash函数值更均匀
+    
+    key=(((key<<44)|(key>>20))%998244353+key)^((key<<24)|(key>>40))^(key%1000000009*key)^(((key<<32)|(key>>32))%1000000007);//足够复杂的hash函数使得偏斜的key输入映射得到的hash函数值更均匀
+    //hash函数设计不当会导致偏斜数据输入导致全局深度迅速增加 使得内存完全被占用导致程序崩溃
 
-    return key&((1<<metadata->global_depth)-1);//返回桶号    
+    return key&(metadata->catalog_size-1);//返回桶号    
 }
 
 /**
@@ -283,7 +286,7 @@ void PmEHash::splitBucket(uint64_t bucket_id) {
     //11pmem_persist11(sp_Bucket->bitmap, sizeof(sp_Bucket->bitmap));
     //11pmem_persist11(new_Bucket->bitmap, sizeof(new_Bucket->bitmap));
 
-    for(int i=(bucket_id&((1<<old_local_depth)-1))|(1<<old_local_depth);i<(1<<metadata->global_depth);i+=(1<<(old_local_depth+1))){//更新目录项，一半指向旧桶的目录项指向新桶
+    for(int i=(bucket_id&((1<<old_local_depth)-1))|(1<<old_local_depth);i<metadata->catalog_size;i+=(1<<(old_local_depth+1))){//更新目录项，一半指向旧桶的目录项指向新桶
         catalog->buckets_pm_address[i]= new_address;
         catalog->buckets_virtual_address[i]=new_Bucket;
         //11pmem_persist11(&(catalog->buckets_pm_address[i]), sizeof(catalog->buckets_pm_address[i]));
@@ -334,7 +337,7 @@ void PmEHash::mergeBucket(uint64_t bucket_id) {
         //修改后需要持久化桶
         //11pmem_persist11(&(mer_bucket->local_depth), sizeof(mer_bucket->local_depth));
 
-        for(int i=(bucket_id&((1<<mer_bucket->local_depth)-1))|(1<<mer_bucket->local_depth);i<(1<<metadata->global_depth);i+=(1<<(mer_bucket->local_depth+1))){//更新目录项，将指向一个桶的目录项全部改指另一个桶
+        for(int i=(bucket_id&((1<<mer_bucket->local_depth)-1))|(1<<mer_bucket->local_depth);i<metadata->catalog_size;i+=(1<<(mer_bucket->local_depth+1))){//更新目录项，将指向一个桶的目录项全部改指另一个桶
             catalog->buckets_pm_address[i]=catalog->buckets_pm_address[bucket_id];
             catalog->buckets_virtual_address[i]=catalog->buckets_virtual_address[bucket_id];
             //11pmem_persist11(&(catalog->buckets_pm_address[i]), sizeof(catalog->buckets_pm_address[i]));//修改后需要持久化目录  
@@ -360,7 +363,7 @@ void PmEHash::extendCatalog() {
     pm_address* old_pm_address=new pm_address[metadata->catalog_size];
     pm_bucket** old_pm_bucket=new pm_bucket*[metadata->catalog_size];
     
-    for(int i=0;i<(1<<metadata->global_depth);i++){
+    for(int i=0;i<metadata->catalog_size;i++){
         old_pm_address[i]=catalog->buckets_pm_address[i];
         old_pm_bucket[i]=catalog->buckets_virtual_address[i];
     }
@@ -460,6 +463,7 @@ void PmEHash::recover() {
         printf("Configuration Error: Persistent memory path error or lack of permission. Please reconfigure.\n");
         exit(1);
     } 
+    if (!is_pmem) printf("Warning: Your data path is not persistent memory. Hash table may run slowly.\n");
 
     //读入所有数据页并建立映射
     mapAllPage();
@@ -523,21 +527,8 @@ void PmEHash::selfDestory() {
     // system("rm -rf /mnt/pmemdir/data");
     // system("mkdir /mnt/pmemdir/data");
 
-    //删除data_page
-    for(int i = 1;i <= metadata->max_file_id;i++){
-        std::string name = Env::get_path() + std::to_string(i);
-        delete_page(name);
-
-    }
-
-    //删除/mnt/pmemdir/metadata
-    std::string name = Env::get_path() + std::string("metadata");
-    delete_page(name);
-
-    //删除/mnt/pmemdir/pm_address
-    name = Env::get_path() + std::string("catalog");
-    delete_page(name);
-    
+    int max_file_id=metadata->max_file_id;
+    metadata->max_file_id=0;
     if (!disposed) {
         delete[] catalog->buckets_virtual_address;
         //11pmem_persist11(catalog->buckets_pm_address, sizeof(pm_address)*metadata->catalog_size);
@@ -551,6 +542,22 @@ void PmEHash::selfDestory() {
         }
         disposed = true;
     }
+
+    //删除data_page
+    for(int i = 1;i <= max_file_id;i++){
+        std::string name = Env::get_path() + std::to_string(i);
+        delete_page(name);
+
+    }
+
+    //删除/mnt/pmemdir/metadata
+    std::string name = Env::get_path() + std::string("metadata");
+    delete_page(name);
+
+    //删除/mnt/pmemdir/pm_address
+    name = Env::get_path() + std::string("catalog");
+    delete_page(name);
+    
 }
 
 void PmEHash::persistAll(){

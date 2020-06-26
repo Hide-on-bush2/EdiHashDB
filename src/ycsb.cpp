@@ -183,10 +183,11 @@ void test_pm_ehash(std::string load, std::string run)
     operate_pm_ehash(pmehash, key, opcode, inserted, read, updated, deleted);
 
     clock_gettime(CLOCK_MONOTONIC, &finish);
-    single_time = (finish.tv_sec - start.tv_sec) * 1000000000.0 +
-                  (finish.tv_nsec - start.tv_nsec);
+    single_time = (finish.tv_sec - start.tv_sec) +
+                  (finish.tv_nsec - start.tv_nsec)/ 1000000000.0;
     printf("Load phase finished: %lu items inserted\n", inserted);
-    printf("Time cost: %fs\n", single_time / 1000000000.0);
+    printf("Time cost: %.12fs\n", single_time);
+    printf("Throughput: %f operations per second \n", inserted / single_time);
 
     printf("\nRun phase started\n");
 
@@ -210,6 +211,7 @@ void test_pm_ehash(std::string load, std::string run)
     printf("%lu items read\n", read);
     printf("%lu items updated\n", updated);
     printf("%lu items deleted\n", deleted);
+    printf("Time cost: %.12fs\n", single_time );
     printf("Throughput: %f operations per second \n", operation_num / single_time);
     delete key;
     delete opcode;

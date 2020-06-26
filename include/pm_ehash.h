@@ -42,19 +42,19 @@ typedef struct ehash_catalog
 
 typedef struct ehash_metadata
 {
-    uint64_t max_file_id;      // next file id that can be allocated
+    uint32_t max_file_id;      // next file id that can be allocated
     uint64_t catalog_size;     // the catalog size of catalog file(amount of data entry)
-    int global_depth;   // global depth of PmEHash  
+    uint32_t global_depth;   // global depth of PmEHash  
 } ehash_metadata;
 
 class PmEHash
 {
 private:
     bool disposed = false;
-    ehash_metadata*                               metadata;                    // virtual address of metadata, mapping the metadata file
-    ehash_catalog*                                      catalog;                        // the catalog of hash
+    ehash_metadata* metadata;                    // virtual address of metadata, mapping the metadata file
+    ehash_catalog* catalog;                        // the catalog of hash
 
-    queue<pm_bucket*>                         free_list;                      //all free slots in data pages to store buckets
+    queue<pm_bucket*> free_list;                      //all free slots in data pages to store buckets
     unordered_map<pm_bucket*, pm_address> vAddr2pmAddr;       // map virtual address to pm_address, used to find specific pm_address
     // map<pm_address, pm_bucket*> pmAddr2vAddr;       // map pm_address to virtual address, used to find specific virtual address
     vector<data_page*> data_page_list; 
