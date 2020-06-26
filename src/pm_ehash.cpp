@@ -104,7 +104,6 @@ int PmEHash::insert(kv new_kv_pair) {
  * @return: 0 = removing successfully, -1 = fail to remove(target data doesn't exist)
  */
 int PmEHash::remove(uint64_t key) {
-    sem_wait(Env::get_semaphore_sync());
     int bucketid = hashFunc(key);//先找到这个key所在的桶的地址，然后遍历桶所有的kv对
              
     pm_bucket* tar_bucket=catalog->buckets_virtual_address[bucketid];
