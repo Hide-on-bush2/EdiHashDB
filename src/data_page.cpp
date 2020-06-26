@@ -86,7 +86,7 @@ string Env::get_path() {
 sem_t* Env::get_semaphore() {
     if (semaphore == nullptr) {
         semaphore = new sem_t();
-        sem_init(semaphore, 0, 1);
+        sem_init(semaphore, 0, 0);
         PersistWorker::start(&PersistWorker::exited);
     }
     return semaphore;
@@ -95,7 +95,7 @@ sem_t* Env::get_semaphore() {
 sem_t* Env::get_semaphore_sync() {
     if (semaphore_sync == nullptr) {
         semaphore_sync = new sem_t();
-        sem_init(semaphore_sync, 0, 1);
+        sem_init(semaphore_sync, 0, 0);
     }
     return semaphore_sync;
 }
