@@ -73,9 +73,9 @@ private:
     unordered_map<pm_address, pm_bucket*,pm_address_hash> pmAddr2vAddr;       // map pm_address to virtual address, used to find specific virtual address
     vector<data_page*> data_page_list; 
     
-    int hashFunc(uint64_t key);
+    inline int hashFunc(uint64_t key);
 
-    bool isBucketFull(int bucket_id);
+    inline bool isBucketFull(int bucket_id);
     pm_bucket* getFreeBucket(uint64_t key);
     pm_bucket* getNewBucket();
     void freeEmptyBucket(pm_bucket* bucket);
@@ -87,7 +87,7 @@ private:
     void extendCatalog();
     void* getFreeSlot(pm_address& new_address);
     void allocNewPage();
-    bool haveFreeKvSlot(pm_bucket* bucket);
+    inline bool haveFreeKvSlot(pm_bucket* bucket);
 
     void recover();
     void create();
