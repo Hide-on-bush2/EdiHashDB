@@ -24,7 +24,7 @@ data_page* create_new_page(uint32_t id){
     data_page* new_page = (data_page*)pmem_map_file(name.c_str(), sizeof(data_page), PMEM_FILE_CREATE, 0666, &map_len, &is_pmem);
     new_page->page_id = id;
     memset(new_page->bit_map,0,sizeof(new_page->bit_map));//for(int i=0;i<DATA_PAGE_SLOT_NUM;i++) new_page->bit_map[i]=0;
-    pmem_persist(new_page->bit_map, sizeof(new_page->bit_map));
+    PersistWorker::post_persist(new_page->bit_map, sizeof(new_page->bit_map));
     return new_page;
 	// printf("is_pmem:%d\n", is_pmem);
     // pmem_persist(new_page, map_len);
@@ -65,6 +65,8 @@ pm_bucket* get_free_bucket(data_page* t_page){
 
 string Env::path = "";
 bool Env::hasInit = false;
+sem_t* Env::semaphore = nullptr;
+sem_t* Env::semaphore_sync = nullptr;
 
 string Env::get_path() {
     if (!hasInit) {
@@ -79,4 +81,48 @@ string Env::get_path() {
         hasInit = true;
     }
     return path;
+}
+
+sem_t* Env::get_semaphore() {
+    if (semaphore == nullptr) {
+        semaphore = new sem_t();
+        sem_init(semaphore, 0, 0);
+        PersistWorker::start(&PersistWorker::exited);
+    }
+    return semaphore;
+}
+
+sem_t* Env::get_semaphore_sync() {
+    if (semaphore_sync == nullptr) {
+        semaphore_sync = new sem_t();
+        sem_init(semaphore_sync, 0, 0);
+    }
+    return semaphore_sync;
+}
+
+std::queue<std::pair<void*, uint64_t>> PersistWorker::queue = std::queue<std::pair<void*, uint64_t>>();
+volatile bool PersistWorker::exited = false;
+
+void PersistWorker::post_persist(void* address, uint64_t size) {
+    queue.push(std::make_pair(address, size));
+    sem_post(Env::get_semaphore());
+}
+
+void PersistWorker::worker(volatile bool* exited) {
+    while (exited == nullptr || !(*exited)) {
+        sem_wait(Env::get_semaphore());
+        if (!queue.empty()) {
+            auto& data = queue.front();
+            pmem_persist(data.first, data.second);
+        } else {
+            sem_post(Env::get_semaphore_sync());
+        }
+    }
+    sem_post(Env::get_semaphore_sync());
+}
+
+void PersistWorker::start(volatile bool* exited) {
+    void(*pf)(volatile bool*) = &worker;
+    std::thread* t = new std::thread([pf, exited]() -> void { (*pf)(exited); });
+    t->detach();
 }
