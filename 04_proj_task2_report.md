@@ -377,6 +377,14 @@ void PmEHash::allocNewPage() {
 * `pmem_unmap`：基本就是调用一个`unmap`，取消文件到文件指针的映射
 * `pmem_persist`：通过调用`flush`的操作和`fence`，将数据从cache刷到可持久化内存中，进行持久化
 
+&emsp;&emsp;需要注意的问题有:
+
++ 首先注意到**path**, **addr**等变量的类型均为指针类型，所以传文件名的时候不能简单地用**string**类型进行拼接后就往上传。
+
++ 其次，用完**map**之后，最后一定要与之匹配一个**unmap**, 防止后面的程序对内存无意识地错误修改。另外内存的长度不应超出事先给定的持久化内存的区域。
+
++ 最后，类似于不能**free**一个空指针一样，这里也不能**unmap**一个已经解除持久化内存映射的指针，即**unmap**一个已经**unmap**的指针，否则会导致崩溃现象。
+
 ### 重新启动时恢复映射状态
 
 &emsp;&emsp;完成这个过程所采用的主要函数是**mapAllPage()**。主要思路如下：
@@ -448,13 +456,13 @@ void PmEHash::mapAllPage() {
 
 ### 测试220w-rw-50-50极限数据
 
-![ycsb](./images/ycsb.png)
+<img src="./images/ycsb.png" height=200% width=200%>
 
 可以看到不到3秒的时间即可完成该数据集
 
 ### 测试220w-rw-50-50极限数据时，使用map对比结果验证正确性
 
-![ycsb_map](./images/ycsb_map.png)
+<img src="./images/ycsb_map.png" height=200% width=200%>
 
 可以看到和map运行结果完全一致，验证了可扩展哈希在该数据集下的正确性。
 
