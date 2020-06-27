@@ -6,7 +6,7 @@
 #define DATA_PAGE
 
 #define DATA_PAGE_SLOT_NUM 32
-#define BUCKET_SLOT_NUM 30
+#define BUCKET_SLOT_NUM 32
 #define DEFAULT_CATALOG_SIZE 16
 #define DEFAULT_GLOBAL_DEPTH 4
 #define MAX_PAGE_NUM 1000000        //定义最大的页面数为1000000

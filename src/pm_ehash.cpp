@@ -80,17 +80,17 @@ PmEHash::~PmEHash() {
  */
 int PmEHash::insert(kv new_kv_pair) {
     uint64_t result;
-    if (search(new_kv_pair.key, result) == 0) {
+    if (search(new_kv_pair.key, result) == 0) {//存在相同的key 插入失败
         return -1;
     }
 
-    pm_bucket* new_bucket = getFreeBucket(new_kv_pair.key);
+    pm_bucket* new_bucket = getFreeBucket(new_kv_pair.key);//获得一个有空闲槽位的桶来插入
     assert(new_bucket != NULL);
 
-    kv* tar_kv = getFreeKvSlot(new_bucket);
+    kv* tar_kv = getFreeKvSlot(new_bucket);//占用一个空闲槽位并获得该槽位的地址
     assert(tar_kv != NULL);
 
-    tar_kv->key = new_kv_pair.key;
+    tar_kv->key = new_kv_pair.key;//插入
     tar_kv->value = new_kv_pair.value;
     //修改后需要持久化键值对
     pmem_persist(tar_kv, sizeof(kv));
@@ -105,24 +105,24 @@ int PmEHash::insert(kv new_kv_pair) {
 int PmEHash::remove(uint64_t key) {
     int bucketid = hashFunc(key);//先找到这个key所在的桶的地址，然后遍历桶所有的kv对
              
-    pm_bucket* tar_bucket=catalog->buckets_virtual_address[bucketid];
+    pm_bucket* tar_bucket=catalog->buckets_virtual_address[bucketid];//获得桶的虚拟地址
 
     bool succ=0;
-    for (int i = 0; i < BUCKET_SLOT_NUM; i++) {
-        if (tar_bucket->bitmap[i] && tar_bucket->slot[i].key == key) {
-            tar_bucket->bitmap[i]=0;
+    for (int i = 0; i < BUCKET_SLOT_NUM; i++) {//遍历所有槽位
+        if (tar_bucket->bitmap[i] && tar_bucket->slot[i].key == key) {//当前槽位有kv对 且kv对的key与希望删除的key相同
+            tar_bucket->bitmap[i]=0;//删除
             //修改后需要持久化
-            pmem_persist(tar_bucket->bitmap, sizeof(tar_bucket->bitmap));
-            succ=1;
+            pmem_persist(tar_bucket->bitmap, sizeof(tar_bucket->bitmap));//只需要持久化bitmap而不需要持久化整个桶 保障程序运行性能
+            succ=1;//删除成功
             break;
         }
     }   
 
-    if (isBucketFull(bucketid)) mergeBucket(bucketid);
-
+    if (isBucketFull(bucketid)) mergeBucket(bucketid);//桶空了后 看是否需要合并桶 回收空间
 
     if (succ) return 0;else return -1;
 }
+
 /**
  * @description: 更新现存的键值对的值
  * @param kv: 更新的键值对，有原键和新值
@@ -131,13 +131,13 @@ int PmEHash::remove(uint64_t key) {
 int PmEHash::update(kv kv_pair) {
     int bucketid = hashFunc(kv_pair.key);//先找到这个key所在的桶的地址，然后遍历桶所有的kv对
             
-    pm_bucket* tar_bucket = catalog->buckets_virtual_address[bucketid];
+    pm_bucket* tar_bucket = catalog->buckets_virtual_address[bucketid];//取出key对应的桶的虚拟地址
 
-    for (int i = 0; i < BUCKET_SLOT_NUM; i++) {
-        if (tar_bucket->bitmap[i] && tar_bucket->slot[i].key == kv_pair.key) {
-            tar_bucket->slot[i].value=kv_pair.value;
+    for (int i = 0; i < BUCKET_SLOT_NUM; i++) {//遍历所有槽位
+        if (tar_bucket->bitmap[i] && tar_bucket->slot[i].key == kv_pair.key) {//当前槽位存在键值对 且key与需要更新的kv对的key相同
+            tar_bucket->slot[i].value=kv_pair.value;//修改
             //修改后需要立即持久化
-            pmem_persist(&(tar_bucket->slot[i].value), sizeof(tar_bucket->slot[i].value));
+            pmem_persist(&(tar_bucket->slot[i].value), sizeof(tar_bucket->slot[i].value));//只需持久化value而不用持久化整个桶 保障运行性能
             return 0;
         }
     }
@@ -153,11 +153,11 @@ int PmEHash::update(kv kv_pair) {
 int PmEHash::search(uint64_t key, uint64_t& return_val) {
     int bucketid = hashFunc(key);//先找到这个key所在的桶的地址，然后遍历桶所有的kv对
        
-    pm_bucket* tar_bucket = catalog->buckets_virtual_address[bucketid];
+    pm_bucket* tar_bucket = catalog->buckets_virtual_address[bucketid];//取出key对应的桶的虚拟地址
 
-    for (int i = 0; i < BUCKET_SLOT_NUM; i++) {
-        if (tar_bucket->bitmap[i] && tar_bucket->slot[i].key == key) {
-            return_val = tar_bucket->slot[i].value;
+    for (int i = 0; i < BUCKET_SLOT_NUM; i++) {//遍历所有槽位
+        if (tar_bucket->bitmap[i] && tar_bucket->slot[i].key == key) {//当前槽位存在键值对 且key与需要检索的key相同
+            return_val = tar_bucket->slot[i].value;//取得value值
             return 0;
         }
     }

@@ -5,7 +5,7 @@
 ```
 |-- project
     |-- 04_proj_task2_report.md
-    |-- 项目运行说明.md
+    |-- README.md
     |-- makefile
     |-- pm_test.c
     |-- src

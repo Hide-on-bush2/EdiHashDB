@@ -43,23 +43,44 @@
 
 ``` C++
 /**
+ * @description: 查找目标键值对数据，将返回值放在参数里的引用类型进行返回
+ * @param uint64_t: 查询的目标键
+ * @param uint64_t&: 查询成功后返回的目标值
+ * @return: 0 = search successfully, -1 = fail to search(target data doesn't exist) 
+ */
+int PmEHash::search(uint64_t key, uint64_t& return_val) {
+    int bucketid = hashFunc(key);//先找到这个key所在的桶的地址，然后遍历桶所有的kv对
+       
+    pm_bucket* tar_bucket = catalog->buckets_virtual_address[bucketid];//取出key对应的桶的虚拟地址
+
+    for (int i = 0; i < BUCKET_SLOT_NUM; i++) {//遍历所有槽位
+        if (tar_bucket->bitmap[i] && tar_bucket->slot[i].key == key) {//当前槽位存在键值对 且key与需要检索的key相同
+            return_val = tar_bucket->slot[i].value;//取得value值
+            return 0;
+        }
+    }
+    
+    return -1;
+}
+/**
  * @description: 更新现存的键值对的值
  * @param kv: 更新的键值对，有原键和新值
  * @return: 0 = update successfully, -1 = fail to update(target data doesn't exist)
  */
 int PmEHash::update(kv kv_pair) {
     int bucketid = hashFunc(kv_pair.key);//先找到这个key所在的桶的地址，然后遍历桶所有的kv对
-    pm_bucket* tar_bucket = catalog->buckets_virtual_address[bucketid];
+            
+    pm_bucket* tar_bucket = catalog->buckets_virtual_address[bucketid];//取出key对应的桶的虚拟地址
 
-    for (int i = 0; i < BUCKET_SLOT_NUM; i++) {
-        if (tar_bucket->bitmap[i] && tar_bucket->slot[i].key == kv_pair.key) {
-            tar_bucket->slot[i].value=kv_pair.value;
-            //立即将数据持久化处理
-            pmem_persist(tar_bucket, sizeof(pm_bucket));
+    for (int i = 0; i < BUCKET_SLOT_NUM; i++) {//遍历所有槽位
+        if (tar_bucket->bitmap[i] && tar_bucket->slot[i].key == kv_pair.key) {//当前槽位存在键值对 且key与需要更新的kv对的key相同
+            tar_bucket->slot[i].value=kv_pair.value;//修改
+            //修改后需要立即持久化
+            pmem_persist(&(tar_bucket->slot[i].value), sizeof(tar_bucket->slot[i].value));//只需持久化value而不用持久化整个桶 保障运行性能
             return 0;
         }
     }
-
+    
     return -1;
 }
 ```
@@ -76,19 +97,19 @@ int PmEHash::update(kv kv_pair) {
  */
 int PmEHash::insert(kv new_kv_pair) {
     uint64_t result;
-    if (search(new_kv_pair.key, result) == 0) {
+    if (search(new_kv_pair.key, result) == 0) {//存在相同的key 插入失败
         return -1;
     }
 
-    pm_bucket* new_bucket = getFreeBucket(new_kv_pair.key);
+    pm_bucket* new_bucket = getFreeBucket(new_kv_pair.key);//获得一个有空闲槽位的桶来插入
     assert(new_bucket != NULL);
 
-    kv* tar_kv = getFreeKvSlot(new_bucket);
+    kv* tar_kv = getFreeKvSlot(new_bucket);//占用一个空闲槽位并获得该槽位的地址
     assert(tar_kv != NULL);
 
-    tar_kv->key = new_kv_pair.key;
+    tar_kv->key = new_kv_pair.key;//插入
     tar_kv->value = new_kv_pair.value;
-    //立即将数据进行持久化
+    //修改后需要持久化键值对
     pmem_persist(tar_kv, sizeof(kv));
     return 0;
 }
@@ -107,26 +128,49 @@ int PmEHash::insert(kv new_kv_pair) {
 int PmEHash::remove(uint64_t key) {
     int bucketid = hashFunc(key);//先找到这个key所在的桶的地址，然后遍历桶所有的kv对
              
-    pm_bucket* tar_bucket=catalog->buckets_virtual_address[bucketid];
+    pm_bucket* tar_bucket=catalog->buckets_virtual_address[bucketid];//获得桶的虚拟地址
 
     bool succ=0;
-    for (int i = 0; i < BUCKET_SLOT_NUM; i++) {
-        if (tar_bucket->bitmap[i] && tar_bucket->slot[i].key == key) {
-            tar_bucket->bitmap[i]=0;
-            //持久化操作
-            pmem_persist(tar_bucket, sizeof(pm_bucket));
-            succ=1;
+    for (int i = 0; i < BUCKET_SLOT_NUM; i++) {//遍历所有槽位
+        if (tar_bucket->bitmap[i] && tar_bucket->slot[i].key == key) {//当前槽位有kv对 且kv对的key与希望删除的key相同
+            tar_bucket->bitmap[i]=0;//删除
+            //修改后需要持久化
+            pmem_persist(tar_bucket->bitmap, sizeof(tar_bucket->bitmap));//只需要持久化bitmap而不需要持久化整个桶 保障程序运行性能
+            succ=1;//删除成功
             break;
         }
     }   
 
-    //如果一个桶已经空了，那么要回收对应桶的空间
-    if (isBucketEmpty(bucketid)) mergeBucket(bucketid);
-
+    if (isBucketFull(bucketid)) mergeBucket(bucketid);//桶空了后 看是否需要合并桶 回收空间
 
     if (succ) return 0;else return -1;
 }
 ```
+
+### 哈希函数
+
+&emsp;&emsp;讨论完了上面的上层接口，现在来讨论一下底层的哈希函数。哈希函数的设计对于哈希表来说非常重要，对可扩展哈希也是如此。如果可扩展哈希的哈希函数选择的不好，那么正如助教师兄提供的课本所说，在一定的偏斜的数据输入的情况下，会导致哈希表运行效率恶化，甚至导致程序崩溃。具体来说，假设我们设计的`BUCKET_SLOT_NUM`是默认的15，而`global_depth`初始为4，我们的hash函数设计为直接取key二进制的最低`global_depth`位，我们考虑用户以下情况的输入。
+&emsp;&emsp;假设数据初始为空，用户接着连续插入16个kv对：用户输入的key最低60位都为0，只有最高4位从0000取到1111各不相同(共16个不同的key)。这16个key显然都会被分到相同的0号桶。插入前15个kv对之后，由于`BUCKET_SLOT_NUM`刚好为15，那么此时0号桶容纳的下15个kv对，不会发生问题。接着插入第16个kv对，这个kv对会被分到0号桶，可是0号桶已经容纳不下了，也就会触发0号桶的分裂。
+&emsp;&emsp;0号桶分裂1次，局部深度就会增加1。局部深度超过全局深度后，会导致全局深度也增加1，进而触发目录倍增。由于hash函数设计地比较简单，直接取key二进制的最低`global_depth`位作为桶号。0号桶需要持续地分裂，直到0号桶存在两个key二进制从低到高第`local_depth`位不同，才能将0号桶内之前的元素分到两个桶中，也才有新的槽位给第16个kv对插入。
+&emsp;&emsp;然而，这16个kv对的二进制最低60位都完全相同。那么`local_depth`要增加到61，才能将0号桶中的元素分到两个桶中。由于`global_depth`大于等于所有`local_depth`，此时会导致`global_depth`也增加到61。那么也就意味着，目录项要倍增到$2^{61}$项。目录项中一个`pm_address`信息就需要8字节的空间才能记录(还未考虑`pm_bucket`的空间)。那么单是`pm_address`，就需要总共$2^{64} Byte$的空间。换算一下就是需要$2^{24} TB$(33,554,432‬ TB)。这个数字显然是个天文数字，远远超过了内存和磁盘能容纳的空间大小。程序还未运行到这个时候就会立即崩溃。
+&emsp;&emsp;因此，如果哈希函数设计得不好，仅仅插入16个kv对，就可以让可扩展哈希完全崩溃。
+&emsp;&emsp;为了克服上面所说的困难，我们对于给定的key，先将这个key进行一些比较复杂的取模、移位、异或的处理(根据相关组合数学与数论知识，对大质数取模效果更好)。使得对于用户输入的key，可以通过hash函数比较均匀地映射到另一个64位无符号整数空间
+。我们再将新得到的无符号整数取二进制最低`global_depth`位得到桶号。之所以取二进制低位，是因为这个操作可以很方便地通过速度较快的位运算&(catalog_size-1)得到。(同时，取二进制低位也使得目录倍增更为方便，详见对目录倍增的分析)
+
+``` C++
+/**
+ * @description: 用于对输入的键产生哈希值，然后取模求桶号(自己挑选合适的哈希函数处理)
+ * @param uint64_t: 输入的键
+ * @return: 返回键所属的桶在目录中的编号
+ */
+int PmEHash::hashFunc(uint64_t key) {
+    
+    key=(((key<<44)|(key>>20))%998244353+key)^((key<<24)|(key>>40))^(key%1000000009*key)^(((key<<32)|(key>>32))%1000000007);//足够复杂的hash函数使得偏斜的key输入映射得到的hash函数值更均匀
+    //hash函数设计不当会导致偏斜数据输入导致全局深度迅速增加 使得内存完全被占用导致程序崩溃
+
+    return key&(metadata->catalog_size-1);//返回桶号    
+}
+``` 
 
 ### 分裂桶与目录倍增的处理
 
