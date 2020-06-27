@@ -1,4 +1,3 @@
-  
 #include "../include/pm_ehash.h"
 #include "../include/data_page.h"
 #include <algorithm>
@@ -172,7 +171,7 @@ int PmEHash::search(uint64_t key, uint64_t& return_val) {
  */
 int PmEHash::hashFunc(uint64_t key) {
     
-    key=(((key<<44)|(key>>20))%998244353+key)^((key<<24)|(key>>40))^(key%1000000009*key)^(((key<<32)|(key>>32))%1000000007);//足够复杂的hash函数使得偏斜的key输入映射得到的hash函数值更均匀
+    key=(((key<<44)|(key>>20))%998244353+key)^((key<<24)|(key>>40))^(((key<<32)|(key>>32))%1000000009);//足够复杂的hash函数使得偏斜的key输入映射得到的hash函数值更均匀
     //hash函数设计不当会导致偏斜数据输入导致全局深度迅速增加 使得内存完全被占用导致程序崩溃
 
     return key&(metadata->catalog_size-1);//返回桶号    
@@ -327,10 +326,6 @@ void PmEHash::mergeBucket(uint64_t bucket_id) {
  * @return: NULL
  */
 void PmEHash::extendCatalog() {
-    // * new_page = (data_page*)pmem_map_file((PERSIST_PATH+to_string(id)).c_str(), sizeof(data_page), PMEM_FILE_CREATE, 0666, &map_len, &is_pmem);
-    // pm_address* old_pm_address = catalog->buckets_pm_address;
-    // pm_bucket** old_virtual_address = catalog->buckets_virtual_address;
-
     // printf("%d\n",metadata->catalog_size);
 
     pm_address* old_pm_address=new pm_address[metadata->catalog_size];
@@ -377,13 +372,12 @@ void* PmEHash::getFreeSlot(pm_address& new_address) {
     // mreturn new_bucket;
     if(free_list.empty()) allocNewPage();
     pm_bucket* new_bucket = free_list.front();
-    pm_address bucket_address=vAddr2pmAddr[new_bucket];
-    data_page* bucket_data_page=data_page_list[bucket_address.fileId-1];
-    bucket_data_page->bit_map[bucket_address.offset/sizeof(pm_bucket)]=1;
+    new_address=vAddr2pmAddr[new_bucket];
+    data_page* bucket_data_page=data_page_list[new_address.fileId-1];
+    bucket_data_page->bit_map[new_address.offset/sizeof(pm_bucket)]=1;
     pmem_persist(bucket_data_page->bit_map,sizeof(bucket_data_page->bit_map));
 
     free_list.pop();
-    new_address = vAddr2pmAddr[new_bucket];
     return new_bucket;
 }
 
@@ -415,7 +409,7 @@ void PmEHash::allocNewPage() {
         free_list.push(&new_page->buckets[i]);
         new_address.offset = i*sizeof(pm_bucket);
         vAddr2pmAddr[&new_page->buckets[i]] = new_address;
-        pmAddr2vAddr[new_address] = &new_page->buckets[i];
+        // pmAddr2vAddr[new_address] = &new_page->buckets[i];
     }
     data_page_list.push_back(new_page);
 }
@@ -456,6 +450,8 @@ void PmEHash::recover() {
     //读入所有数据页并建立映射
     mapAllPage();
 
+    pmAddr2vAddr.clear();//释放占用的空间
+
     printf("Data loaded successfully. Welcome~\n");
 }
 
@@ -489,7 +485,7 @@ void PmEHash::create(){
     if (!is_pmem) printf("Warning: Your data path is not persistent memory. Hash table may run slowly.\n");
 
     vAddr2pmAddr.clear();
-    pmAddr2vAddr.clear();
+    // pmAddr2vAddr.clear();//不需要用到
     data_page_list.clear();
     while (!free_list.empty()) free_list.pop();
     

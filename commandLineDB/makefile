@@ -1,4 +1,4 @@
-FLAGES = -std=c++11 -lpmem -O3 -g
+FLAGES = -std=c++11 -lpmem -O3
 
 CLDB:CLDB.o data_page.o pm_ehash.o
 	g++ CLDB.o data_page.o pm_ehash.o -o CLDB $(FLAGES)

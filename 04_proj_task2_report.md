@@ -171,7 +171,7 @@ int PmEHash::remove(uint64_t key) {
  */
 int PmEHash::hashFunc(uint64_t key) {
     
-    key=(((key<<44)|(key>>20))%998244353+key)^((key<<24)|(key>>40))^(key%1000000009*key)^(((key<<32)|(key>>32))%1000000007);//足够复杂的hash函数使得偏斜的key输入映射得到的hash函数值更均匀
+    key=(((key<<44)|(key>>20))%998244353+key)^((key<<24)|(key>>40))^(((key<<32)|(key>>32))%1000000009);//足够复杂的hash函数使得偏斜的key输入映射得到的hash函数值更均匀
     //hash函数设计不当会导致偏斜数据输入导致全局深度迅速增加 使得内存完全被占用导致程序崩溃
 
     return key&(metadata->catalog_size-1);//返回桶号    
