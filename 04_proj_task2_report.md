@@ -9,6 +9,13 @@
 | 17364025 | 贺恩泽|
 | 18324061 | 文君逸|
 
+## 成员分工
+
+* 车春江：`data_page.h`的设计和实现，`pm_ehash.cpp`中构造函数，析构函数的设计和实现，以及恢复数据库的操作和设置数据页和文件的映射关系，以及与NVM内存相关的操作（文件映射和持久化操作）
+* 谭嘉伟：`pm_ehash.cpp`中大部分功能的实现，包括增、删、查、改操作，以及哈希函数的设计，桶的分裂\合并操作、目录的倍增操作，以及对其余模块代码的代码风格调整，以及对数据库的性能进行优化，以及对ycsb结果的合拍测试，验证其正确性
+* 贺恩泽：对整个项目进行调试和`Makefile`编写，生成测试数据集以及gtest测试的debug工作，以及参与到`data_page`和`pm_ehash`的设计和优化，并实现多线程来对数据库的性能加以优化
+* 文君逸：ycsb测试的编写，完成报告和项目说明的大部分内容，以及参与到`data_page`和`pm_ehash`的设计和优化，并对测试方法和步骤进行详细的说明
+
 ## 项目内容
 
 &emsp;&emsp;实验项目完成的目标是完成基于针对NVM优化的可扩展哈希的数据结构，实现一个简单的键值存储引擎PmEHash。我们用data_page来实现数据页表的相关操作实现。    
@@ -176,7 +183,7 @@ int PmEHash::hashFunc(uint64_t key) {
 
     return key&(metadata->catalog_size-1);//返回桶号    
 }
-``` 
+```
 
 ### 插入时获得有空闲槽位的桶
 
@@ -364,7 +371,11 @@ void PmEHash::allocNewPage() {
 + **void \*pmem_map_file(const char \*path, size_t len, int flags,mode_t mode, size_t \*mapped_lenp, int \*is_pmemp)**
 + **int pmem_unmap(void \*addr, size_t len)**
 
-&emsp;&emsp;其中第一个函数是将在缓存(虚拟地址)中的修改记录到持久内存中去，第二个函数是用于创建或打开文件并将其映射到内存，第三个函数用于取消映射指定的区域。这三个函数是库函数，已经为我们提供了接口，所以只需要在内存持久化的过程中调用就可以了。在上面的代码中我们也可以看到在持久化内存的时候这三个函数频繁被调用。
+&emsp;&emsp;这三个函数的说明如下：
+
+*  `pmem_persist`：简单来说就是把一个文件映射到内存地址空间；如果文件不存在可以根据`flag`来决定是否创建。开头是一堆`flag`的设置和`check`；然后试图打开/创建文件。如果是创建的话，还需要用`ftruncate/posix_fallocate`来控制文件大小。如果是`open`就检查文件大小。最后调用一个`mmap`，将该文件映射到一个地址`addr`上，返回`addr`
+* `pmem_unmap`：基本就是调用一个`unmap`，取消文件到文件指针的映射
+* `pmem_persist`：通过调用`flush`的操作和`fence`，将数据从cache刷到可持久化内存中，进行持久化
 
 ### 重新启动时恢复映射状态
 
