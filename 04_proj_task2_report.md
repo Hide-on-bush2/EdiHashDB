@@ -11,10 +11,10 @@
 
 ## 成员分工
 
-* 车春江：`data_page.h`的设计和实现，`pm_ehash.cpp`中构造函数，析构函数的设计和实现，以及恢复数据库的操作和设置数据页和文件的映射关系，以及与NVM内存相关的操作（文件映射和持久化操作）
-* 谭嘉伟：`pm_ehash.cpp`中大部分功能的实现，包括增、删、查、改操作，以及哈希函数的设计，桶的分裂\合并操作、目录的倍增操作，以及对其余模块代码的代码风格调整，以及对数据库的性能进行优化，以及对ycsb结果的合拍测试，验证其正确性
-* 贺恩泽：对整个项目进行调试和`Makefile`编写，生成测试数据集以及gtest测试的debug工作，以及参与到`data_page`和`pm_ehash`的设计和优化，并实现多线程来对数据库的性能加以优化
-* 文君逸：ycsb测试的编写，完成报告和项目说明的大部分内容，以及参与到`data_page`和`pm_ehash`的设计和优化，并对测试方法和步骤进行详细的说明
+* 车春江：页表结构的设计和实现，可扩展哈希类的构造和析构方法的设计和实现，以及恢复数据库的操作和设置数据页和文件的映射关系，以及利用 NVM 实现文件的映射、反映射和持久化等操作。
+* 谭嘉伟：可扩展哈希中的增、删、查、改操作的设计和实现，以及哈希函数的设计，实现桶的分裂和合并操作、目录的倍增操作，对其余模块代码的代码风格调整，对数据库的性能进行调优，并使用ycsb进行对拍测试，验证其正确性
+* 贺恩泽：对整个项目进行调试，Makefile、测试数据生成器和ycsb对拍及单点计时功能的编写，测试数据集以及gtest测试的调试工作，以及参与到页表和可扩展哈希类的设计和优化，并尝试实现多线程来对数据库的性能加以优化
+* 文君逸：ycsb测试的整体架构设计，并编写代码实现ycsb，读取测试数据并测试数据库的性能，以及参与到页表和可扩展哈希类的设计和优化，对数据库进行性能调优，完成报告和项目说明的大部分内容，并对测试方法和步骤进行详细的说明
 
 ## 项目内容
 
@@ -508,3 +508,57 @@ void PmEHash::mapAllPage() {
 ![CLDB2](./images/CLDB2.png)
 
 可以从上面的截图中看出，命令行数据库功能正常，符合要求。
+
+## 多线程实现实验
+我们尝试了利用多线程实现数据的持久化，由于每次操作后均需要持久化数据，该操作可能会造成较大消耗，因此我们尝试多线程方案。
+
+对于多线程方案，我们采取后台线程队列方式进行数据的持久化，当需要进行数据持久化时，向队列中投递任务，由另一个线程消费持久化队列进行处理。
+
+但是这样造成了一些问题：当需要删除数据时，若后台持久化队列还没有完成时，可能会造成对已经释放的无效数据进行持久化导致段错误。
+
+因此，需要对数据进行跟踪，确保数据有效，在持久化前确保指针指向的数据未被释放。
+
+``` C++
+std::queue<std::pair<void*, uint64_t>> PersistWorker::queue = std::queue<std::pair<void*, uint64_t>>();
+
+void PersistWorker::worker(volatile bool* exited) {	
+    while (exited == nullptr || !(*exited)) {	
+        sem_wait(Env::get_semaphore());	
+        if (!queue.empty()) {	
+            auto& data = queue.front();	
+            if (address_map.count(data.first) > 0 &&address_map[data.first]) {
+                pmem_persist(data.first, data.second);
+                address_map.erase(data.first);
+            }
+            queue.pop();
+        } else {	
+            sem_post(Env::get_semaphore_sync());	
+        }	
+    }	
+    sem_post(Env::get_semaphore_sync());	
+}
+```
+
+当需要持久化时，向队列中投递任务后释放信号量，并标记有效位：
+``` C++
+queue.push(std::make_pair(address, size));
+address_map[addr] = true;
+sem_post(Env::get_semaphore());
+```
+
+当删除数据时，需要将对应地址标记为无效：
+``` C++
+address_map[addr] = false;
+```
+
+最后的测试结果如下：
+
+多线程模式：
+![多线程](images/multi-thread.png)
+
+单线程模式：
+![单线程](images/single-thread.png)
+
+可以看到多线程反而降低了吞吐量。
+
+分析原因可以得出，频繁的信号量操作反而带来了更大的开销，以及线程之间的数据同步造成了更多的阻塞开销，因此最后仍然采用原有的单线程实现方案。
