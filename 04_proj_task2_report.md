@@ -495,6 +495,10 @@ void PmEHash::mapAllPage() {
 
 对于多线程方案，我们采取后台线程队列方式进行数据的持久化，当需要进行数据持久化时，向队列中投递任务，由另一个线程消费持久化队列进行处理。
 
+但是这样造成了一些问题：当需要删除数据时，若后台持久化队列还没有完成时，可能会造成对已经释放的无效数据进行持久化导致段错误。
+
+因此，需要对数据进行跟踪，确保数据有效，在持久化前确保指针指向的数据未被释放。
+
 ``` C++
 std::queue<std::pair<void*, uint64_t>> PersistWorker::queue = std::queue<std::pair<void*, uint64_t>>();
 
@@ -503,7 +507,10 @@ void PersistWorker::worker(volatile bool* exited) {
         sem_wait(Env::get_semaphore());	
         if (!queue.empty()) {	
             auto& data = queue.front();	
-            pmem_persist(data.first, data.second);
+            if (address_map.count(data.first) > 0 &&address_map[data.first]) {
+                pmem_persist(data.first, data.second);
+                address_map.erase(data.first);
+            }
             queue.pop();
         } else {	
             sem_post(Env::get_semaphore_sync());	
@@ -513,22 +520,16 @@ void PersistWorker::worker(volatile bool* exited) {
 }
 ```
 
-当需要持久化时，向队列中投递任务后释放信号量：
+当需要持久化时，向队列中投递任务后释放信号量，并标记有效位：
 ``` C++
-queue.push(std::make_pair(address, size));	
+queue.push(std::make_pair(address, size));
+address_map[addr] = true;
 sem_post(Env::get_semaphore());
 ```
 
-但是这样造成了一些问题：当需要释放数据进行 unmap 时，若后台持久化队列还没有完成时，可能会造成对已经释放的无效数据进行持久化导致段错误。
-
-因此，需要一个同步信号量，用于等待持久化队列消费完成后再进行销毁操作。
-
+当删除数据时，需要将对应地址标记为无效：
 ``` C++
-sem_wait(Env::get_semaphore_sync());
-
-delete[] catalog->buckets_virtual_address;
-delete[] catalog->buckets_virtual_address;  
-......
+address_map[addr] = false;
 ```
 
 最后的测试结果如下：
