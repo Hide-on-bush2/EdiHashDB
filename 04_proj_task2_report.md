@@ -11,10 +11,10 @@
 
 ## 成员分工
 
-* 车春江：页表结构的设计和实现，可扩展哈希类的构造和析构方法的设计和实现，以及从持久化文件中载入数据、恢复数据库的操作和设置数据页和文件的映射关系，以及利用 NVM 实现文件的映射、反映射和持久化等操作。
-* 谭嘉伟：可扩展哈希中的增、删、查、改操作的设计和实现，以及哈希函数的设计，实现桶的分裂和合并操作、目录的倍增操作，对其余模块代码的代码风格调整，对数据库的性能进行调优，并使用ycsb进行对拍测试，验证其正确性，以及编写命令行数据库CLDB
-* 贺恩泽：对整个项目进行调试，Makefile、测试数据生成器和ycsb对拍及单点计时功能的编写，测试数据集以及gtest测试的调试工作，以及参与到页表和可扩展哈希类的设计和优化，并尝试实现多线程来对数据库的性能加以优化
-* 文君逸：ycsb测试的整体架构设计，并编写代码实现ycsb，读取测试数据并测试数据库的性能，以及参与到页表和可扩展哈希类的设计和优化，对数据库进行性能调优，完成报告和项目说明的大部分内容，并对测试方法和步骤进行详细的说明
+* 车春江：页表结构的设计和实现，可扩展哈希类的构造和析构方法的设计和实现，以及从持久化文件中载入数据、恢复数据库的操作和设置数据页和文件的映射关系，以及利用 NVM 实现文件的映射、反映射和持久化等操作，部分实验报告。
+* 谭嘉伟：可扩展哈希中的增、删、查、改操作的设计和实现，以及哈希函数的设计，实现桶的分裂和合并操作、目录的倍增操作，对其余模块代码的代码调整与优化，对数据库的性能进行调优及相应实验报告，并使用ycsb进行对拍测试，验证其正确性，以及编写命令行数据库CLDB
+* 贺恩泽：对整个项目进行调试，Makefile、测试数据生成器和ycsb对拍及单点计时功能的编写，测试数据集以及gtest测试的调试工作，以及参与到页表和可扩展哈希类的设计和优化，ycsb下不同操作平均时间统计，并尝试实现多线程来对数据库的性能加以优化及相应实验报告
+* 文君逸：ycsb测试的整体架构设计，并编写代码实现ycsb，读取测试数据并测试数据库的性能，以及参与到页表和可扩展哈希类的设计和优化，对数据库进行性能调优，完成部分实验报告和项目说明的大部分内容，并对测试方法和步骤进行详细的说明
 
 ## 项目内容
 
@@ -47,7 +47,7 @@
 
 ### Search(查找数据) 和 Update(更新数据)
 
-&emsp;&emsp;查找数据、更新数据是比较简单的操作，只需要根据函数传入的键值，利用自己设计的哈希函数计算出对应的**bucket_id**,再通过**catalog**中的信息得到**bucket_id**对应的桶的虚拟地址，然后遍历这个桶里面所有的**kv**对就可以找到了。不同之处是**Update**找到后需要修改存储的**value**, 并立即进行持久化操作，更新函数实现过程如下：
+&emsp;&emsp;查找数据、更新数据是比较简单的操作，只需要根据函数传入的键值，利用自己设计的哈希函数计算出对应的**bucket_id**,再通过**catalog**中的信息得到**bucket_id**对应的桶的虚拟地址，然后遍历这个桶里面所有的槽位就可以了。不同之处是**Update**操作找到对应的**kv**对后需要修改存储的**value**, 并立即进行持久化操作，更新函数实现过程如下：
 
 ``` C++
 /**
@@ -95,7 +95,7 @@ int PmEHash::update(kv kv_pair) {
 
 ### Insert(插入数据)
 
-&emsp;&emsp;插入数据的过程包含了查找数据的过程。如果查找到了一个相同键值的数据已经被插入，那么该键值的数据是不允许再次被插入的。而如果在对应的桶中没有找到相同键值的数据，那么就可以开始进行插入过程。一个比较简单的插入过程就是通过调用 **getFreeBucket()** 和调用 **getFreeKvSlot()** 得到插入的地址，将相应的 **bitmap** 位置1即可。但后面我们可以看到，在找到可以插入的地址时并不那么简单，因为一个满的桶可能导致桶的分裂和目录的倍增，也可能导致新的一个页面的分配。但由于是介绍 **insert()** 函数，所以我们暂时不考虑这些。同样插入需要持久化操作，函数实现过程如下：
+&emsp;&emsp;插入数据的过程包含了查找数据的过程。如果查找到了一个相同键值的数据已经被插入，那么该键值的数据是不允许再次被插入的。而如果在对应的桶中没有找到相同键值的数据，那么就可以开始进行插入过程。一个比较简单的插入过程就是通过调用 **getFreeBucket()** 和调用 **getFreeKvSlot()** 得到插入的地址，将相应的 **bitmap** 位置1即可。但后面我们可以看到，在找到可以插入的地址时并不那么简单，因为一个满的桶可能导致桶的分裂和目录的倍增，也可能导致新的一个页面的分配(getFreeBucket和getFreeKvSlot详见后面的介绍)。同样插入需要持久化操作，函数实现过程如下：
 
 ``` C++
 /**
@@ -110,21 +110,36 @@ int PmEHash::insert(kv new_kv_pair) {
     }
 
     pm_bucket* new_bucket = getFreeBucket(new_kv_pair.key);//获得一个有空闲槽位的桶来插入
-    // assert(new_bucket != NULL);
 
     kv* tar_kv = getFreeKvSlot(new_bucket);//占用一个空闲槽位并获得该槽位的地址
-    // assert(tar_kv != NULL);
 
     *tar_kv = new_kv_pair;//插入
     //修改后需要持久化键值对
     pmem_persist(tar_kv, sizeof(kv));
     return 0;
 }
+
+/**
+ * @description: 获得空闲桶内第一个空闲的位置供键值对插入
+ * @param pm_bucket* bucket
+ * @return: 空闲键值对位置的虚拟地址
+ */
+kv* PmEHash::getFreeKvSlot(pm_bucket* bucket) {
+    for (int i = 0; i < BUCKET_SLOT_NUM; i++) {//遍历所有槽位
+        if (bucket->bitmap[i] == 0) {
+            bucket->bitmap[i] = 1;  //分配这个位置
+            pmem_persist(bucket->bitmap,sizeof(bucket->bitmap));//将对bitmap的更新持久化
+            return &(bucket->slot[i]);
+        }
+    }
+
+    return NULL;
+}
 ```
 
 ### Remove(删除数据)
 
-&emsp;&emsp;删除数据的过程也包含了查找数据的过程，这里不再赘述。同样，删除操作只需要把对应的**bitmap**位置0即可，并需要响应的持久化操作。但是删除数据可能导致一个桶变空，因此需要释放桶的空间，这一操作在后面的函数中会详细说明。删除数据的实现如下：
+&emsp;&emsp;删除数据的过程也包含了查找数据的过程，这里不再赘述。同样，删除操作只需要把对应的**bitmap**位置0即可，并需要相应的持久化操作。但是删除数据可能导致一个桶变空，因此可能会触发释放桶的空间，这一操作在后面的函数中会详细说明。删除数据的实现如下：
 
 ``` C++
 /**
@@ -151,6 +166,21 @@ int PmEHash::remove(uint64_t key) {
     if (isBucketFull(bucketid)) mergeBucket(bucketid);//桶空了后 看是否需要合并桶 回收空间
 
     if (succ) return 0;else return -1;
+}
+
+/**
+ * @description: 判断桶是否为空
+ * @param int: 桶号
+ * @return bool: 1桶为空/0桶不为空 
+ */
+bool PmEHash::isBucketFull(int bucket_id){
+    pm_bucket* tar_bucket=catalog->buckets_virtual_address[bucket_id];
+
+    for (int i = 0; i < BUCKET_SLOT_NUM; i++) {//遍历所有槽位
+        if (tar_bucket->bitmap[i])
+            return 0;
+    }
+    return 1;
 }
 ```
 
@@ -186,6 +216,10 @@ int PmEHash::hashFunc(uint64_t key) {
 
 ### 插入时获得有空闲槽位的桶
 
+&emsp;&emsp;插入时需要找到一个有空闲槽位的，key可以插入的桶。getFreeBucket实现了这个功能。其通过hash函数得到key分到的桶号，如果桶是空的就返回桶的虚拟地址，否则将当前桶分裂。
+
+&emsp;&emsp;注意到单纯一次分裂可能不能将旧桶中的元素完全分开(局部深度增加没有改变旧桶中所有元素被分到的桶号)，可能会有连续分裂的情况，详见代码注释。
+
 ```C++
 /**
  * @description: 获得供插入的空闲的桶，无空闲桶则先分裂桶然后再返回空闲的桶(可能会触发连续分裂)
@@ -219,13 +253,15 @@ bool PmEHash::haveFreeKvSlot(pm_bucket* bucket) {
 }
 ```
 
-### 分裂桶与目录倍增的处理
+### 分裂桶的处理
 
-&emsp;&emsp;一个桶在被判断满后需要分裂，我们自然要先得到是哪个桶需要分裂，也就是要得到要分裂的桶的虚拟地址。一个桶分裂后，其对应的局部深度要加一，即这个桶代表的二进制位需要多判断一位。这这之前，如果全局深度和目前要分裂的这个桶的局部深部深度相等的话，那么要先增加全局深度，再来增加这个桶的局部深度。否则目录不足以记录新分裂的桶对应的二进制模式。    
+&emsp;&emsp;一个桶在被判断满后需要分裂，我们先得到要分裂的桶的虚拟地址。一个桶分裂后，其对应的局部深度要加一，即放入这个桶的元素的二进制位需要多判断一位。
 
-&emsp;&emsp;分裂一个桶无非是要用一个新的二进制位的0和1来区分原来的局部深度所不足以区分的键值。所以分裂过程中我们只需要将待分裂的桶的新的这一个二进制位所能区分的数据分装到分裂后的两个桶里即可。区分的过程采用位运算即可。     
+&emsp;&emsp;分裂一个桶无非是要用一个新的二进制位的0和1来区分原来的局部深度所不足以区分的键值。所以分裂过程中我们只需要将待分裂的桶的新的这一个二进制位所能区分的数据分装到分裂后的两个桶里即可。区分的过程采用位运算即可，直接使用位运算可以加快程序运行速度。     
 
-&emsp;&emsp;上面原理性的操作结束后，剩下的便是一些细节性的操作。处理好目录指向新、旧桶的指针，释放旧目录所占的空间，并进行持久化操作即可。两个函数的代码实现如下：    
+&emsp;&emsp;上面原理性操作结束后，需要持久化更改。之后处理好目录指向新、旧桶的指针(也是通过二进制下新用来判断的二进制位来区分)，并进行目录项的持久化操作即可，详见下面代码的注释。    
+
+&emsp;&emsp;此外，需要注意到如果桶原来的局部深度等于全局深度，说明用全局深度个二进制位来分桶是不够的，需要让全局深度增加1和倍增目录。另外，分裂桶需要申请一个新的空闲的桶，申请新桶的空间由函数`getFreeSlot`实现。
 
 ``` C++
 
@@ -241,17 +277,17 @@ void PmEHash::splitBucket(uint64_t bucket_id) {
     if (sp_Bucket->local_depth==metadata->global_depth) extendCatalog();//局部深度等于全局深度 需要倍增目录
 
     pm_address new_address;
-    pm_bucket* new_Bucket=(pm_bucket*)getFreeSlot(new_address);//得到新的桶虚拟地址(需要初始化)
+    pm_bucket* new_Bucket=(pm_bucket*)getFreeSlot(new_address);//得到新的桶虚拟地址
 
-    int old_local_depth=sp_Bucket->local_depth;
+    int old_local_depth=sp_Bucket->local_depth;//记录旧的深度用于之后将旧桶中的元素分裂到新桶
     new_Bucket->local_depth=++sp_Bucket->local_depth;//更新桶的深度
     pmem_persist(&(sp_Bucket->local_depth), sizeof(sp_Bucket->local_depth));//持久化桶的深度
     pmem_persist(&(new_Bucket->local_depth), sizeof(new_Bucket->local_depth));
    
     int cur=0;
-    for(int i=0;i<BUCKET_SLOT_NUM;i++) if (hashFunc(sp_Bucket->slot[i].key)&(1<<old_local_depth)){
-        sp_Bucket->bitmap[i]=0;
-        new_Bucket->bitmap[cur]=1;
+    for(int i=0;i<BUCKET_SLOT_NUM;i++) if (hashFunc(sp_Bucket->slot[i].key)&(1<<old_local_depth)){//旧桶中的元素应该被hash函数分到新桶中
+        sp_Bucket->bitmap[i]=0;//从旧桶中删去
+        new_Bucket->bitmap[cur]=1;//插入新桶
         new_Bucket->slot[cur].key=sp_Bucket->slot[i].key;
         new_Bucket->slot[cur].value=sp_Bucket->slot[i].value;
         pmem_persist(&(new_Bucket->slot[cur]),sizeof(kv));//将桶中的键值对持久化
@@ -270,48 +306,62 @@ void PmEHash::splitBucket(uint64_t bucket_id) {
 
 }
 
+/**
+ * @description: 获得一个可用的数据页的新槽位供哈希桶使用，如果没有则先申请新的数据页
+ * @param pm_address&: 新槽位的持久化文件地址，作为引用参数返回
+ * @return: 新槽位的虚拟地址
+ **/
+void* PmEHash::getFreeSlot(pm_address& new_address) {  
+    if(free_list.empty()) allocNewPage();//free_list不存在空闲的桶 需要分配一个新页
+    
+    pm_bucket* new_bucket = free_list.front();//取出一个空闲的桶
+    free_list.pop();
 
+    new_address=vAddr2pmAddr[new_bucket];//得到对应的桶所在的实际地址
+
+    data_page* bucket_data_page=data_page_list[new_address.fileId-1];
+    bucket_data_page->bit_map[new_address.offset/sizeof(pm_bucket)]=1;//占用标记
+    pmem_persist(bucket_data_page->bit_map,sizeof(bucket_data_page->bit_map));//持久化占用标记
+
+    return new_bucket;//返回虚拟地址
+}
+```
+
+### 目录倍增
+
+&emsp;&emsp;如果分裂的桶的局部深度(在分裂前)等于全局深度，说明当前哈希函数使用key哈希处理后的二进制的最低`global_depth`位不够用来分桶。需要让哈希函数分桶考虑的最低二进制位数目增加一位(`global_depth`需要增加1)。全局深度增加后，同时需要目录倍增，并对新增加的目录项赋予合适的对应的桶地址的值。由于哈希函数设计为取key哈希处理后的最低若干个二进制位作为桶号，而且目录第i项对应的就是i号桶的地址信息。因此，只需要将原来旧的数组很方便地复制一份接到其后面，就可以实现全局深度加1后导致的目录倍增。这个过程可能需要临时的动态内存空间，详见下面的代码注释。
+
+```C++
 /**
  * @description: 对目录进行倍增，需要重新生成新的目录文件并复制旧值，然后删除旧的目录文件
  * @param NULL
  * @return: NULL
  */
 void PmEHash::extendCatalog() {
-    // printf("%d\n",metadata->catalog_size);
 
     pm_address* old_pm_address=new pm_address[metadata->catalog_size];
     pm_bucket** old_pm_bucket=new pm_bucket*[metadata->catalog_size];
     
-    // for(int i=0;i<metadata->catalog_size;i++){
-    //     old_pm_address[i]=catalog->buckets_pm_address[i];
-    //     old_pm_bucket[i]=catalog->buckets_virtual_address[i];
-    // }
-    memcpy(old_pm_address, catalog->buckets_pm_address, sizeof(pm_address)<<metadata->global_depth);
+    memcpy(old_pm_address, catalog->buckets_pm_address, sizeof(pm_address)<<metadata->global_depth);//复制旧的目录到临时数组
     memcpy(old_pm_bucket, catalog->buckets_virtual_address, sizeof(pm_bucket*)<<metadata->global_depth);
 
-    metadata->global_depth++;
+    metadata->global_depth++;//更新全局深度和目录大小
     metadata->catalog_size<<=1;
-    pmem_persist(metadata,sizeof(ehash_metadata));
+    pmem_persist(metadata,sizeof(ehash_metadata));//持久化元数据
 
-    std::string name = Env::get_path() + std::string("catalog");
+    std::string name = Env::get_path() + std::string("catalog");//重新映射一个更大的目录文件(用于存放buckets_pm_address)
     int is_pmem;
     size_t pm_address_len;
     catalog->buckets_pm_address = (pm_address*)pmem_map_file(name.c_str(), sizeof(pm_address)<<metadata->global_depth, PMEM_FILE_CREATE, 0666, &pm_address_len, &is_pmem);
     
-    catalog->buckets_virtual_address=new pm_bucket*[metadata->catalog_size];
+    catalog->buckets_virtual_address=new pm_bucket*[metadata->catalog_size];//申请一个更大的存放buckets_virtual_address的数组
 
-    // for(int i=0;i<(1<<(metadata->global_depth-1));i++){
-    //     catalog->buckets_pm_address[i]=old_pm_address[i];
-    //     catalog->buckets_virtual_address[i]=old_pm_bucket[i];
-    //     catalog->buckets_pm_address[i|(1<<(metadata->global_depth-1))]=old_pm_address[i];
-    //     catalog->buckets_virtual_address[i|(1<<(metadata->global_depth-1))]=old_pm_bucket[i];     
-    // }    
-    memcpy(catalog->buckets_pm_address, old_pm_address, sizeof(pm_address)<<(metadata->global_depth-1));
+    memcpy(catalog->buckets_pm_address, old_pm_address, sizeof(pm_address)<<(metadata->global_depth-1));//将临时数组拷贝到新的存放目录项的数组 新数组前一半和后一半都拷贝一份旧数组 
     memcpy(catalog->buckets_pm_address+(1<<(metadata->global_depth-1)), old_pm_address, sizeof(pm_address)<<(metadata->global_depth-1));
     memcpy(catalog->buckets_virtual_address, old_pm_bucket, sizeof(pm_bucket*)<<(metadata->global_depth-1));
     memcpy(catalog->buckets_virtual_address+(1<<(metadata->global_depth-1)), old_pm_bucket, sizeof(pm_bucket*)<<(metadata->global_depth-1));
 
-    delete [] old_pm_address;
+    delete [] old_pm_address;//释放临时数组的空间
     delete [] old_pm_bucket;
 
     //需要持久化目录        
@@ -319,10 +369,26 @@ void PmEHash::extendCatalog() {
 
 }
 ```
+### 
 
 ### 桶空后的空间回收
 
-&emsp;&emsp;因为参考资料上没有写具体怎样回收空桶，所以回收这一功能由我们小组自行编程实现。桶空的回收实际上是用时间换空间。回收多了会影响性能，这也是书上提到的为什么会经常忽略这一项的原因。如果每个目录元素与它的分裂映像都指向同一个桶，还可以对目录进行减半，从而减小全局深度，尽管这对于代码的正确性并不重要。因此在设计代码的时候，我们并不是每一个桶一旦空就进行合并，而是等到两个桶都空了再进行合并，然后将合并成的空桶再向其分裂映像进行合并，这也是代码会出现连续合并的原因。     
+&emsp;&emsp;因为助教师兄提供的参考资料上写出回收空桶对于正确性保证来说不是必须的，可以根据数据库的具体需求进行实现。我们小组根据上课所学的知识和参考资料，考虑设计了回收桶的空间这一功能。
+
+&emsp;&emsp;为了方便描述，我们不妨称一个桶中任一键值对的key的哈希处理后的二进制最低`local_depth`位为这个桶的tag。称一个桶tag异或$(1 << local_depth)$得到的tag所对应的桶为对偶桶(tag和桶号的区别是，桶号是由哈希函数得到。目录中多个桶号对应的地址可能是同一个实际的物理桶的地址。一个物理桶则和一个tag一一对应)。显然，一个桶和他的对偶桶由同一个局部深度为`local_depth`-1的桶分裂得到。一个桶和他的对偶桶合并得到的也就是原来这个分裂了的局部深度为`local_depth`-1的桶。
+
+&emsp;&emsp;桶的合并不仅和当前删除键值对的桶有关，还与当前桶对应的对偶桶有关。当前桶对应的对偶桶局部深度和当前桶相同时，才有可能进行合并。否则说明对偶桶已经分裂过形成了多个桶，这个时候不能将当前桶合并。
+
+&emsp;&emsp;在当前桶和对偶桶的局部深度相同的情况下，可以进行两个桶的合并。桶的合并方法至少包括以下三种：1、一个桶和他的对偶桶的所有键值对刚好能够塞入一个桶时，合并该桶和对偶桶；2、一个桶为空时，合并该桶和对偶桶；一个桶和他的对偶桶都为空时，才合并该桶和对偶桶。
+
+&emsp;&emsp;桶的回收实质上是用时间换空间，也就是需要通过牺牲时间的代价来回收空间。如果希望尽可能回收多余的空间(像上面所述的第一种方法，就需要每删除一个元素后付出额外的时间检查当前桶和对偶桶的元素数目)，那么势必需要投入很多时间开销，会影响到数据库的性能，这也是一些参考资料上不使用这种方法的原因。
+
+&emsp;&emsp;对于目录而言，如果每个目录元素与它的分裂映像都指向同一个桶，还可以对目录进行减半，从而减小全局深度，尽管这对于代码的正确性也不是必要的，而且恰好恢复到每个目录元素与它的分裂映像都指向同一个桶的情况出现的比较少。除非是在目录倍增后的临界情况下，但如果设计了这个操作，可能会导致临界状态下来回倍增与回收目录空间的巨大时间开销。
+
+&emsp;&emsp;桶的合并也是如此。如果采用上面第二种合并方法，一个删除键值对后的空桶的对偶桶中还存在元素，那么合并后的新桶也依然会比较容易分裂。假设对偶桶刚好是满的，那么合并后的桶如果再插入一个元素，又会导致分裂。注意到分裂桶和合并桶都要对目录中很多项的相应地址进行修改，在最坏情况下可能要将整个目录大小数量的目录项进行修改。如果合并后新桶处于满的临界状态下，则可能会因为后续的操作反复分裂与合并，使得数据库性能恶化。一个可能更好一点的方法是设计一个装载因子，当一个删除键值对的桶空，且他的对偶桶键值对个数小于等于装载因子时，才进行着两个桶的合并。但这种方法也需要额外统计对偶桶的元素个数，也会加大时间开销。
+
+&emsp;&emsp;基于上述原因，考虑在当前情境下，对于给定的数据集不是很缺少内存空间，且为了后续性能优化考虑。我们并不是每一个桶一旦空就进行合并，而是等到该桶和对偶桶都空了再进行合并。注意到这种情况下如同分裂桶可能会导致连续分裂，此时也可能会导致连续合并。合并成的新的空桶如果对偶桶也为空，那么就会触发再次合并，回收空闲的空间。考虑到数据库用户的键值访问可能也存在局部性，当空桶的对偶桶中有元素的时候，说明可能之后还会再次进行对偶桶的元素插入，避免了合并和额外操作目录项的时间开销。而当桶和对偶桶都空时，说明这两个桶实在元素太少了，且可预见的未来也可能不再会向合并后的桶插入很多元素导致再次分裂。这样的方法既保证了空闲空间的回收，也保证了数据库的运行效率。    
+
 &emsp;&emsp;根据上面的原理，两个空桶合并的时候，原本为了区分新的键值而给这两个空桶分配的新二进制位便不再使用，因此局部深度会减1。我们用**freeEmptyBucket()** 函数来回收桶的空间， 即进行一些细节处理，然后修改对应的虚拟地址和持久内存地址的映射，并进行数据持久化即可。具体实现代码如下：
 
 ``` C++
@@ -331,19 +397,25 @@ void PmEHash::extendCatalog() {
  * @param uint64_t: 桶号
  * @return: NULL
  */
+/**
+ * @description: 桶空后，回收桶的空间，并设置相应目录项指针(可能会触发连续合并)
+ * @param uint64_t: 桶号
+ * @return: NULL
+ */
 void PmEHash::mergeBucket(uint64_t bucket_id) {
-    pm_bucket* mer_bucket=catalog->buckets_virtual_address[bucket_id];
+    pm_bucket* mer_bucket=catalog->buckets_virtual_address[bucket_id];//得到桶的虚拟地址
     if (mer_bucket->local_depth==1) return;//局部深度为1时不能合并
-    bucket_id=bucket_id&((1<<mer_bucket->local_depth)-1);
+    bucket_id=bucket_id&((1<<mer_bucket->local_depth)-1);//获得当前桶的tag
 
     while (1){//连续合并的处理
-        uint64_t dual_id=bucket_id^(1<<(mer_bucket->local_depth-1)); 
-        pm_bucket* dual_bucket=catalog->buckets_virtual_address[dual_id];
-        if (dual_bucket->local_depth!=mer_bucket->local_depth) break;
-        if (!isBucketFull(dual_id)) break;
+        uint64_t dual_id=bucket_id^(1<<(mer_bucket->local_depth-1)); //通过当前桶tag计算对偶桶的tag
+        pm_bucket* dual_bucket=catalog->buckets_virtual_address[dual_id];//对偶桶虚拟地址
+        if (dual_bucket->local_depth!=mer_bucket->local_depth) break;//如果两个桶局部深度不相等 不能合并
+        if (!isBucketFull(dual_id)) break;//对偶桶不空 
         
-        //需要合并
-        if (bucket_id&(1<<(mer_bucket->local_depth-1))){
+        //下面需要合并
+
+        if (bucket_id&(1<<(mer_bucket->local_depth-1))){//合并后的新的桶的tag应该为对偶桶的桶的tag
             swap(bucket_id,dual_id);
             swap(dual_bucket,mer_bucket);
         }
@@ -351,8 +423,8 @@ void PmEHash::mergeBucket(uint64_t bucket_id) {
         
         freeEmptyBucket(catalog->buckets_virtual_address[dual_id]);//归还空间
         mer_bucket->local_depth--;//局部深度--
-        //修改后需要持久化桶
-        pmem_persist(&(mer_bucket->local_depth), sizeof(mer_bucket->local_depth));
+        
+        pmem_persist(&(mer_bucket->local_depth), sizeof(mer_bucket->local_depth));//修改后需要持久化桶
 
         for(int i=(bucket_id&((1<<mer_bucket->local_depth)-1))|(1<<mer_bucket->local_depth);i<metadata->catalog_size;i+=(1<<(mer_bucket->local_depth+1))){//更新目录项，将指向一个桶的目录项全部改指另一个桶
             catalog->buckets_pm_address[i]=catalog->buckets_pm_address[bucket_id];
@@ -360,10 +432,23 @@ void PmEHash::mergeBucket(uint64_t bucket_id) {
             pmem_persist(&(catalog->buckets_pm_address[i]), sizeof(catalog->buckets_pm_address[i]));//修改后需要持久化目录  
         }
         
-        if (mer_bucket->local_depth==1) break;
+        if (mer_bucket->local_depth==1) break;//局部深度为1时不能再合并
 
     }
 
+}
+
+/**./
+ * @description: 释放一个空桶的空间
+ * @param pm_address: 所释放槽位的虚拟地址
+ * @return: 无返回值
+ */
+void PmEHash::freeEmptyBucket(pm_bucket* bucket){
+    free_list.push(bucket);//加入free_list
+    pm_address bucket_address=vAddr2pmAddr[bucket];//取得对应的物理地址
+    data_page* bucket_data_page=data_page_list[bucket_address.fileId-1];
+    bucket_data_page->bit_map[bucket_address.offset/sizeof(pm_bucket)]=0;//占用标记置为0
+    pmem_persist(bucket_data_page->bit_map,sizeof(bucket_data_page->bit_map));
 }
 ```
 
@@ -399,56 +484,52 @@ struct data_page{
  * @return: NULL
  */
 void PmEHash::allocNewPage() {
-    metadata->max_file_id++;
-    pmem_persist(&(metadata->max_file_id),sizeof(metadata->max_file_id));
-    data_page* new_page=create_new_page(metadata->max_file_id);
-    data_page_list.push_back(new_page);
+    metadata->max_file_id++;//最大文件号自增1
+    pmem_persist(&(metadata->max_file_id),sizeof(metadata->max_file_id));//持久化最大文件号
+
+    data_page* new_page=create_new_page(metadata->max_file_id);//创建一个新页
+    data_page_list.push_back(new_page);//放入新页的指针到data_page_list
 
     pm_address new_address;
     new_address.fileId = metadata->max_file_id;
     for(int i = 0;i < DATA_PAGE_SLOT_NUM;i++){
-        free_list.push(&new_page->buckets[i]);
-        new_address.offset = i*sizeof(pm_bucket);
+        free_list.push(&new_page->buckets[i]);//新的物理桶的空间
+        new_address.offset = i*sizeof(pm_bucket);//计算对应data_page中的地址
 
-        vAddr2pmAddr[&new_page->buckets[i]] = new_address;
-        // pmAddr2vAddr[new_address] = &new_page->buckets[i];
+        vAddr2pmAddr[&new_page->buckets[i]] = new_address;//建立持久化内存与映射关系
+        // pmAddr2vAddr[new_address] = &new_page->buckets[i];//pmAddr2vAddr在数据库运行时没有用到 处于性能考虑而注释掉
     }
 }
+/*
+ @创建一个新的数据页
+ */
+data_page* create_new_page(uint32_t id){
+    std::string name = Env::get_path() + to_string(id);
+    size_t map_len;
+    int is_pmem;  
+    
+    data_page* new_page = (data_page*)pmem_map_file(name.c_str(), sizeof(data_page), PMEM_FILE_CREATE, 0666, &map_len, &is_pmem);//建立到NVM中数据页文件的映射
+    new_page->page_id = id;
+    memset(new_page->bit_map,0,sizeof(new_page->bit_map));//bit_map清零 for(int i=0;i<DATA_PAGE_SLOT_NUM;i++) new_page->bit_map[i]=0;
+    pmem_persist(new_page->bit_map, sizeof(new_page->bit_map));//持久化写回NVM
+    return new_page;
+}
+
 ```
-
-### 修改NVM的操作
-
-&emsp;&emsp;修改持久化内存主要用到以下三个函数：
-+ **void pmem_persist(const void \*addr, size_t len)**
-+ **void \*pmem_map_file(const char \*path, size_t len, int flags,mode_t mode, size_t \*mapped_lenp, int \*is_pmemp)**
-+ **int pmem_unmap(void \*addr, size_t len)**
-
-&emsp;&emsp;这三个函数的说明如下：
-
-*  `pmem_persist`：简单来说就是把一个文件映射到内存地址空间；如果文件不存在可以根据`flag`来决定是否创建。开头是一堆`flag`的设置和`check`；然后试图打开/创建文件。如果是创建的话，还需要用`ftruncate/posix_fallocate`来控制文件大小。如果是`open`就检查文件大小。最后调用一个`mmap`，将该文件映射到一个地址`addr`上，返回`addr`
-* `pmem_unmap`：基本就是调用一个`unmap`，取消文件到文件指针的映射
-* `pmem_persist`：通过调用`flush`的操作和`fence`，将数据从cache刷到可持久化内存中，进行持久化
-
-&emsp;&emsp;需要注意的问题有:
-
-+ 首先注意到**path**, **addr**等变量的类型均为指针类型，所以传文件名的时候不能简单地用**string**类型进行拼接后就往上传。
-
-+ 其次，用完**map**之后，最后一定要与之匹配一个**unmap**, 防止后面的程序对内存无意识地错误修改。另外内存的长度不应超出事先给定的持久化内存的区域。
-
-+ 最后，类似于不能**free**一个空指针一样，这里也不能**unmap**一个已经解除持久化内存映射的指针，即**unmap**一个已经**unmap**的指针，否则会导致崩溃现象。
 
 ### 重新启动时恢复映射状态
 
-&emsp;&emsp;完成这个过程所采用的主要函数是**mapAllPage()**。主要思路如下：
+&emsp;&emsp;完成这个过程所采用的主要函数是**recover()**和**mapAllPage()**。recover函数会检查数据是否有删除标记，如果有删除标记，会重新初始化所有数据，否则会读取原有旧的数据。主要思路如下：
 
 #### 重新读入metadata的信息
 
-&emsp;&emsp;进行这一步的目的是为了读出目录的大小，记录关键的信息，例如**catalog_size**, **max_file_id**, 以便于后面初始化**catalog**信息的时候分配对应大小的空间。只有在初始化完指针的空间之后才能进行下一步的操作，否则会报**segmentation fault**(段错误)。
+&emsp;&emsp;进行这一步的目的是为了读出目录的大小，记录关键的信息，例如**catalog_size**, **max_file_id**, 以便于后面初始化**catalog**信息的时候分配对应大小的空间。
 
 #### 读取每一个页面的信息
 
 &emsp;&emsp;由于本项目在持久化文件时已经将**page_id**作为文件名，所以只要用一个变量**i**从1到**max_file_id**循环即可。在读入的时候需要读入页面、桶的空闲与占用信息，建立持久内存地址和虚拟地址的映射关系。最后再初始化**PmEHash**类的**catalog**的信息即可。    
-&emsp;&emsp;在这个函数写好后，**recover()** 方法只需要调用这个函数就可以了。此函数的实现如下：
+
+&emsp;&emsp;注意到程序每次程序运行，NVM文件映射到的内存空间地址可能是不同的。因此buckets_virtual_address不需要保存在文件中。但是buckets_pm_address需要保存在catalog文件中，根据读取出的buckets_pm_address和当前程序建立的NVM文件映射关系，可以计算出buckets_virtual_address。
 
 ``` C++
 /**
@@ -464,15 +545,15 @@ void PmEHash::mapAllPage() {
     size_t pm_address_len;
 
     for(int i = 1;i <= metadata->max_file_id;i++){
-        name = Env::get_path() + std::to_string(i);
+        name = Env::get_path() + std::to_string(i);//读取第i个数据页文件
         size_t map_len;
-        data_page* old_page = (data_page*)pmem_map_file(name.c_str(), sizeof(data_page), PMEM_FILE_CREATE, 0666, &map_len, &is_pmem);
-        data_page_list.push_back(old_page);
+        data_page* old_page = (data_page*)pmem_map_file(name.c_str(), sizeof(data_page), PMEM_FILE_CREATE, 0666, &map_len, &is_pmem);//建立内存映射关系
+        data_page_list.push_back(old_page);//数据页指针放入data_page_list中
         old_address.fileId=i;
-        for(int j = 0;j < DATA_PAGE_SLOT_NUM;j++){
-            if(!old_page->bit_map[j]) free_list.push(&old_page->buckets[j]);
-            old_address.offset=j*sizeof(pm_bucket);
-            vAddr2pmAddr[&old_page->buckets[j]] = old_address;
+        for(int j = 0;j < DATA_PAGE_SLOT_NUM;j++){//遍历数据页的所有槽位
+            if(!old_page->bit_map[j]) free_list.push(&old_page->buckets[j]);//可用槽位 说明为一个空闲的桶 加入free_list
+            old_address.offset=j*sizeof(pm_bucket);//计算在data_page中地址偏移
+            vAddr2pmAddr[&old_page->buckets[j]] = old_address;//建立pm_address与pm_bucket之间的映射map
             pmAddr2vAddr[old_address] = &old_page->buckets[j];
         }
     }
@@ -482,17 +563,182 @@ void PmEHash::mapAllPage() {
     name =  Env::get_path() + std::string("catalog");
 
     catalog = new ehash_catalog;
-    catalog->buckets_pm_address = (pm_address*)pmem_map_file(name.c_str(), sizeof(pm_address)<<metadata->global_depth, PMEM_FILE_CREATE, 0666, &pm_address_len, &is_pmem);
+    catalog->buckets_pm_address = (pm_address*)pmem_map_file(name.c_str(), sizeof(pm_address)<<metadata->global_depth, PMEM_FILE_CREATE, 0666, &pm_address_len, &is_pmem);//建立到目录文件的映射
 
     catalog->buckets_virtual_address = new pm_bucket*[metadata->catalog_size];
     for(int i = 0; i < metadata->catalog_size ; i++){
-        catalog->buckets_virtual_address[i] = pmAddr2vAddr[catalog->buckets_pm_address[i]];
+        catalog->buckets_virtual_address[i] = pmAddr2vAddr[catalog->buckets_pm_address[i]];//通过前面的map快速取出对应的虚拟地址
     }
 
 }
 
+/**
+ * @description: 读取旧数据文件重新载入哈希，恢复哈希关闭前的状态
+ * @param NULL
+ * @return: NULL
+ */
+void PmEHash::recover() {
+
+    printf("Old data file exists. Try to read data files.\n");
+
+    //读入metadata 检查数据是否有效 有效则读取catalog和data_page 否则重新初始化所有数据
+    std::string name = Env::get_path() + std::string("metadata");
+    size_t metadata_len;
+    int is_pmem;
+    metadata = (ehash_metadata*)pmem_map_file(name.c_str(), sizeof(ehash_metadata), PMEM_FILE_CREATE, 0666, &metadata_len, &is_pmem);
+    if (metadata==NULL){
+        printf("Configuration Error: Persistent memory path error or lack of permission. Please reconfigure.\n");
+        exit(1);
+    } 
+
+    if (metadata->max_file_id==0){
+        printf("Data Error: Invalid data. Try to recreate data files.\n");
+        pmem_unmap(metadata, sizeof(ehash_metadata));
+        create();
+        return;
+    }
+
+    if (!is_pmem) printf("Warning: Your data path is not persistent memory. Hash table may run slowly.\n");
+
+    vAddr2pmAddr.clear();
+    pmAddr2vAddr.clear();
+    data_page_list.clear();
+    while (!free_list.empty()) free_list.pop();
+
+    //读入所有数据页并建立映射
+    mapAllPage();
+
+    pmAddr2vAddr.clear();//释放占用的空间
+
+    printf("Data loaded successfully. Welcome~\n");
+}
 ```
 
+### 初始化数据
+
+&emsp;&emsp;初始化数据是根据默认的DEFAULT_CATALOG_SIZE与DEFAULT_GLOBAL_DEPTH等参数建立数据文件和映射关系，初始化metadata,catalog,data_page的信息。
+
+```C++
+/**
+ * @description: 创建新的hash数据文件
+ * @param NULL
+ * @return: NULL
+ */
+void PmEHash::create(){
+    printf("Try to initialize data.\n");
+
+    std::string name = Env::get_path() + std::string("metadata");
+    int is_pmem;
+    size_t metadata_len;
+    metadata = (ehash_metadata*)pmem_map_file(name.c_str(), sizeof(ehash_metadata), PMEM_FILE_CREATE, 0666, &metadata_len, &is_pmem);
+    if (metadata==NULL){
+        printf("Configuration Error: Persistent memory path error or lack of permission. Please reconfigure.\n");
+        exit(1);
+    }
+
+    if (!is_pmem) printf("Warning: Your data path is not persistent memory. Hash table may run slowly.\n");
+
+    vAddr2pmAddr.clear();
+    // pmAddr2vAddr.clear();//不需要用到
+    data_page_list.clear();
+    while (!free_list.empty()) free_list.pop();
+    
+    //创建metadata文件 需要初始化metadata全局深度为4  所有桶局部深度也要初始化为4
+    metadata->catalog_size = DEFAULT_CATALOG_SIZE;
+    metadata->max_file_id = 0;
+    metadata->global_depth = DEFAULT_GLOBAL_DEPTH;
+    pmem_persist(metadata, metadata_len);
+
+    //创建catalog文件  建立目录与桶的映射关系
+    size_t pm_address_len;
+    name = Env::get_path() + std::string("catalog");
+    pm_address* buckets_address = (pm_address*)pmem_map_file(name.c_str(), sizeof(pm_address)*DEFAULT_CATALOG_SIZE, PMEM_FILE_CREATE, 0666, &pm_address_len, &is_pmem);
+    pm_bucket** virtual_address = new pm_bucket*[DEFAULT_CATALOG_SIZE];
+    for(int i = 0;i < DEFAULT_CATALOG_SIZE;i++){
+        virtual_address[i]=(pm_bucket*)getFreeSlot(buckets_address[i]);
+        virtual_address[i]->local_depth=4;    
+    }
+    pmem_persist(buckets_address, pm_address_len);//持久化buckets_address
+
+    catalog = new ehash_catalog;
+    catalog->buckets_pm_address = buckets_address;
+    catalog->buckets_virtual_address = virtual_address;
+
+    disposed=false;
+    printf("Data initialized successfully. Welcome~\n");
+}
+``` 
+
+### 删除数据(用于gtest,ycsb,CLDB)
+
+&emsp;&emsp;主要思路是先取消到NVM的内存映射，释放动态空间，之后再删除数据文件。
+
+```C++
+/**
+ * @description: 删除PmEHash对象所有数据页，目录和元数据文件，主要供gtest使用。即清空所有可扩展哈希的文件数据，不止是内存上的
+ * @param NULL
+ * @return: NULL
+ */
+void PmEHash::selfDestory() {
+    // system("rm -rf /mnt/pmemdir/data");
+    // system("mkdir /mnt/pmemdir/data");
+
+    int max_file_id=metadata->max_file_id;
+    metadata->max_file_id=0;
+    if (!disposed) {
+        delete[] catalog->buckets_virtual_address;
+        pmem_persist(catalog->buckets_pm_address, sizeof(pm_address)<<metadata->global_depth);
+        pmem_unmap(catalog->buckets_pm_address, sizeof(pm_address)<<metadata->global_depth);
+        delete catalog;
+        pmem_persist(metadata, sizeof(ehash_metadata));
+        pmem_unmap(metadata, sizeof(ehash_metadata));
+        for(auto page : data_page_list){
+            pmem_persist(page, sizeof(data_page));
+            pmem_unmap(page, sizeof(data_page));
+        }
+        disposed = true;
+    }
+
+    //删除data_page
+    for(int i = 1;i <= max_file_id;i++){
+        std::string name = Env::get_path() + std::to_string(i);
+        delete_page(name);
+
+    }
+
+    //删除/mnt/pmemdir/metadata
+    std::string name = Env::get_path() + std::string("metadata");
+    delete_page(name);
+
+    //删除/mnt/pmemdir/pm_address
+    name = Env::get_path() + std::string("catalog");
+    delete_page(name);
+    
+}
+```
+
+## 修改NVM的操作
+
+&emsp;&emsp;修改持久化内存主要用到以下三个函数：
++ **void pmem_persist(const void \*addr, size_t len)**
++ **void \*pmem_map_file(const char \*path, size_t len, int flags,mode_t mode, size_t \*mapped_lenp, int \*is_pmemp)**
++ **int pmem_unmap(void \*addr, size_t len)**
+
+&emsp;&emsp;这三个函数的说明如下：
+
+*  `pmem_persist`：简单来说就是把一个文件映射到内存地址空间；如果文件不存在可以根据`flag`来决定是否创建。开头是一堆`flag`的设置和`check`；然后试图打开/创建文件。如果是创建的话，还需要用`ftruncate/posix_fallocate`来控制文件大小。如果是`open`就检查文件大小。最后调用一个`mmap`，将该文件映射到一个地址`addr`上，返回`addr`
+* `pmem_unmap`：基本就是调用一个`unmap`，取消文件到文件指针的映射
+* `pmem_persist`：通过调用`flush`的操作和`fence`，将数据从cache刷到可持久化内存中，进行持久化
+
+&emsp;&emsp;需要注意的问题有:
+
++ 注意到CPU与NVM交互与内存交互类似。CPU修改NVM中数据的值默认先在Cache中修改。为了保证数据库的数据一致性与实时性，需要手动在修改后立即使用`pmem_persist`写回数据到NVM中。
+
++ 首先注意到**path**, **addr**等变量的类型均为指针类型，所以传文件名的时候不能简单地用**string**类型进行拼接后就往上传。
+
++ 其次，用完**map**之后，最后一定要与之匹配一个**unmap**, 防止后面的程序对内存无意识地错误修改。另外内存的长度不应超出事先给定的持久化内存的区域。
+
++ 最后，类似于不能**free**一个空指针一样，这里也不能**unmap**一个已经解除持久化内存映射的指针，即**unmap**一个已经**unmap**的指针，否则会导致崩溃现象。
 
 ## gtest结果
 
@@ -549,7 +795,7 @@ void PmEHash::mapAllPage() {
 
 ### 总体分析
 
-&emsp;&emsp;综上来看，插入操作所花费的时间是最长的，删除和更新操作的时间较短，查找操作的时间最短，这个结论与截图中的结果是一致的。
+&emsp;&emsp;综上来看，插入操作所花费的时间是最长的，删除和更新操作的时间较短，查找操作的时间最短，这个结论与截图中的结果是基本一致的(截图中删除、更新、查找操作执行都很快且速度接近，不能进一步区分出相对快慢)。
 
 ## 命令行数据库(CLDB)
 
@@ -561,7 +807,7 @@ void PmEHash::mapAllPage() {
 
 可以从上面的截图中看出，命令行数据库功能正常，符合要求。
 
-## 多线程实现实验
+## 【加分项】多线程实现实验
 
 我们尝试了利用多线程实现数据的持久化，由于每次操作后均需要持久化数据，该操作可能会造成较大消耗，因此我们尝试多线程方案。
 
@@ -621,3 +867,29 @@ address_map[addr] = false;
 可以看到多线程反而降低了吞吐量。
 
 分析原因可以得出，频繁的信号量操作反而带来了更大的开销，以及线程之间的数据同步造成了更多的阻塞开销，因此最后仍然采用原有的单线程实现方案。
+
+## 【加分项】数据库性能优化
+
+&emsp;&emsp;我们在最开始完成数据库课程设计时，性能测试如下(使用助教师兄给定的标准数据集中数据量最大的ycsb数据集220w-rw-50-50)：(github上本项目仓库的commit号为88954eeb2d0ac3d4f0826ded848ebc52e8a60862)
+
+![优化前](./images/ycsb_pre.png)
+
+&emsp;&emsp;经过对相应算法和数据结构的时间复杂度和空间复杂度分析，我们优化后的性能测试如下(使用助教师兄给定的标准数据集中数据量最大的ycsb数据集220w-rw-50-50)：(github本项目仓库的最新代码)
+
+![优化前](./images/ycsb.png)
+
+&emsp;&emsp;可以看到，load阶段的运行时间从27.76s优化到了不到1s(run阶段在220w-rw-50-50中数据量很小，所以没有考虑这部分时间)。性能优化效果明显，这是因为我们进行了如下的优化：
+
+1、持久化内存写回优化。本项目中，NVM在修改数据后都需要立即写回以保证数据一致性与实时性。这个强制写回操作也有这比较高的时间开销(CPU与内存/NVM交互速度相比和Cache交互慢很多)。因为NVM按字节寻址，可以按字节写回。因此我们在优化中保证有修改的数据都全部写回，但尽量不写回其他数据内容。
+
+2、将vAddr2pmAddr和pmAddr2vAddr两个用作映射的map换做unordered_map。map底层是用红黑树实现，unordered_map底层是用哈希表实现。由于这个建立的物理地址与虚拟地址的映射关系只需要查找，不需要遍历，所以可以不使用map。unordered_map查找时间复杂度为O(1)，相比map查找时间复杂度O(log n)更快。pmAddr2vAddr只需要在mapAllPage中使用，而在数据库运行过程中不需要使用。
+
+3、编译时开启-O3优化选项，关闭-g调试选项，使得编译得到的代码更有效率。(其实优化前的代码应该也开了O3优化选项)
+
+4、尽量多地将一些循环实现的初始化和赋值代码用memset，memcpy函数代替。
+
+5、常数优化：编程时增加程序的空间局部性。编程时减少一些不必要的临时变量的使用，传递一些函数参数用指针，部分函数使用inline声明。
+
+6、分裂桶和合并桶不是遍历整个目录来修改目录项，而是通过位运算只修改特定的需要修改的目录项。
+
+7、设置data_page的槽数目和bucket的槽数目为合适的值。

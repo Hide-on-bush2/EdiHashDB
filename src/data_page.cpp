@@ -16,15 +16,18 @@
 using namespace std;
 // 数据页表的相关操作实现都放在这个源文件下，如PmEHash申请新的数据页和删除数据页的底层实现
 
+/*
+ @创建一个新的数据页
+ */
 data_page* create_new_page(uint32_t id){
     std::string name = Env::get_path() + to_string(id);
     size_t map_len;
     int is_pmem;  
     
-    data_page* new_page = (data_page*)pmem_map_file(name.c_str(), sizeof(data_page), PMEM_FILE_CREATE, 0666, &map_len, &is_pmem);
+    data_page* new_page = (data_page*)pmem_map_file(name.c_str(), sizeof(data_page), PMEM_FILE_CREATE, 0666, &map_len, &is_pmem);//建立到NVM中数据页文件的映射
     new_page->page_id = id;
-    memset(new_page->bit_map,0,sizeof(new_page->bit_map));//for(int i=0;i<DATA_PAGE_SLOT_NUM;i++) new_page->bit_map[i]=0;
-    pmem_persist(new_page->bit_map, sizeof(new_page->bit_map));
+    memset(new_page->bit_map,0,sizeof(new_page->bit_map));//bit_map清零 for(int i=0;i<DATA_PAGE_SLOT_NUM;i++) new_page->bit_map[i]=0;
+    pmem_persist(new_page->bit_map, sizeof(new_page->bit_map));//持久化写回NVM
     return new_page;
 	// printf("is_pmem:%d\n", is_pmem);
     // pmem_persist(new_page, map_len);
@@ -46,7 +49,7 @@ bool delete_page(string name){
     	return true;
     }
     else{
-        printf("delete %s failure\n",name.c_str());
+        printf("delete %s failure\n",name.c_str());//删除失败 发出警告
     	return false;
     }
 }

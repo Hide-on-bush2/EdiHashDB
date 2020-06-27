@@ -213,9 +213,9 @@ bool PmEHash::haveFreeKvSlot(pm_bucket* bucket) {
  * @return: 空闲键值对位置的虚拟地址
  */
 kv* PmEHash::getFreeKvSlot(pm_bucket* bucket) {
-    for (int i = 0; i < BUCKET_SLOT_NUM; i++) {
+    for (int i = 0; i < BUCKET_SLOT_NUM; i++) {//遍历所有槽位
         if (bucket->bitmap[i] == 0) {
-            bucket->bitmap[i] = 1;                                  //分配这个位置
+            bucket->bitmap[i] = 1;  //分配这个位置
             pmem_persist(bucket->bitmap,sizeof(bucket->bitmap));//将对bitmap的更新持久化
             return &(bucket->slot[i]);
         }
@@ -236,17 +236,17 @@ void PmEHash::splitBucket(uint64_t bucket_id) {
     if (sp_Bucket->local_depth==metadata->global_depth) extendCatalog();//局部深度等于全局深度 需要倍增目录
 
     pm_address new_address;
-    pm_bucket* new_Bucket=(pm_bucket*)getFreeSlot(new_address);//得到新的桶虚拟地址(需要初始化)
+    pm_bucket* new_Bucket=(pm_bucket*)getFreeSlot(new_address);//得到新的桶虚拟地址
 
-    int old_local_depth=sp_Bucket->local_depth;
+    int old_local_depth=sp_Bucket->local_depth;//记录旧的深度用于之后将旧桶中的元素分裂到新桶
     new_Bucket->local_depth=++sp_Bucket->local_depth;//更新桶的深度
     pmem_persist(&(sp_Bucket->local_depth), sizeof(sp_Bucket->local_depth));//持久化桶的深度
     pmem_persist(&(new_Bucket->local_depth), sizeof(new_Bucket->local_depth));
    
     int cur=0;
-    for(int i=0;i<BUCKET_SLOT_NUM;i++) if (hashFunc(sp_Bucket->slot[i].key)&(1<<old_local_depth)){
-        sp_Bucket->bitmap[i]=0;
-        new_Bucket->bitmap[cur]=1;
+    for(int i=0;i<BUCKET_SLOT_NUM;i++) if (hashFunc(sp_Bucket->slot[i].key)&(1<<old_local_depth)){//旧桶中的元素应该被hash函数分到新桶中
+        sp_Bucket->bitmap[i]=0;//从旧桶中删去
+        new_Bucket->bitmap[cur]=1;//插入新桶
         new_Bucket->slot[cur].key=sp_Bucket->slot[i].key;
         new_Bucket->slot[cur].value=sp_Bucket->slot[i].value;
         pmem_persist(&(new_Bucket->slot[cur]),sizeof(kv));//将桶中的键值对持久化
@@ -273,7 +273,7 @@ void PmEHash::splitBucket(uint64_t bucket_id) {
 bool PmEHash::isBucketFull(int bucket_id){
     pm_bucket* tar_bucket=catalog->buckets_virtual_address[bucket_id];
 
-    for (int i = 0; i < BUCKET_SLOT_NUM; i++) {
+    for (int i = 0; i < BUCKET_SLOT_NUM; i++) {//遍历所有槽位
         if (tar_bucket->bitmap[i])
             return 0;
     }
@@ -286,18 +286,19 @@ bool PmEHash::isBucketFull(int bucket_id){
  * @return: NULL
  */
 void PmEHash::mergeBucket(uint64_t bucket_id) {
-    pm_bucket* mer_bucket=catalog->buckets_virtual_address[bucket_id];
+    pm_bucket* mer_bucket=catalog->buckets_virtual_address[bucket_id];//得到桶的虚拟地址
     if (mer_bucket->local_depth==1) return;//局部深度为1时不能合并
-    bucket_id=bucket_id&((1<<mer_bucket->local_depth)-1);
+    bucket_id=bucket_id&((1<<mer_bucket->local_depth)-1);//获得当前桶的tag
 
     while (1){//连续合并的处理
-        uint64_t dual_id=bucket_id^(1<<(mer_bucket->local_depth-1)); 
-        pm_bucket* dual_bucket=catalog->buckets_virtual_address[dual_id];
-        if (dual_bucket->local_depth!=mer_bucket->local_depth) break;
-        if (!isBucketFull(dual_id)) break;
+        uint64_t dual_id=bucket_id^(1<<(mer_bucket->local_depth-1)); //通过当前桶tag计算对偶桶的tag
+        pm_bucket* dual_bucket=catalog->buckets_virtual_address[dual_id];//对偶桶虚拟地址
+        if (dual_bucket->local_depth!=mer_bucket->local_depth) break;//如果两个桶局部深度不相等 不能合并
+        if (!isBucketFull(dual_id)) break;//对偶桶不空 
         
-        //需要合并
-        if (bucket_id&(1<<(mer_bucket->local_depth-1))){
+        //下面需要合并
+
+        if (bucket_id&(1<<(mer_bucket->local_depth-1))){//合并后的新的桶的tag应该为对偶桶的桶的tag
             swap(bucket_id,dual_id);
             swap(dual_bucket,mer_bucket);
         }
@@ -305,8 +306,8 @@ void PmEHash::mergeBucket(uint64_t bucket_id) {
         
         freeEmptyBucket(catalog->buckets_virtual_address[dual_id]);//归还空间
         mer_bucket->local_depth--;//局部深度--
-        //修改后需要持久化桶
-        pmem_persist(&(mer_bucket->local_depth), sizeof(mer_bucket->local_depth));
+        
+        pmem_persist(&(mer_bucket->local_depth), sizeof(mer_bucket->local_depth));//修改后需要持久化桶
 
         for(int i=(bucket_id&((1<<mer_bucket->local_depth)-1))|(1<<mer_bucket->local_depth);i<metadata->catalog_size;i+=(1<<(mer_bucket->local_depth+1))){//更新目录项，将指向一个桶的目录项全部改指另一个桶
             catalog->buckets_pm_address[i]=catalog->buckets_pm_address[bucket_id];
@@ -314,11 +315,12 @@ void PmEHash::mergeBucket(uint64_t bucket_id) {
             pmem_persist(&(catalog->buckets_pm_address[i]), sizeof(catalog->buckets_pm_address[i]));//修改后需要持久化目录  
         }
         
-        if (mer_bucket->local_depth==1) break;
+        if (mer_bucket->local_depth==1) break;//局部深度为1时不能再合并
 
     }
 
 }
+
 /**
  * @description: 对目录进行倍增，需要重新生成新的目录文件并复制旧值，然后删除旧的目录文件
  * @param NULL
@@ -334,19 +336,19 @@ void PmEHash::extendCatalog() {
     //     old_pm_address[i]=catalog->buckets_pm_address[i];
     //     old_pm_bucket[i]=catalog->buckets_virtual_address[i];
     // }
-    memcpy(old_pm_address, catalog->buckets_pm_address, sizeof(pm_address)<<metadata->global_depth);
+    memcpy(old_pm_address, catalog->buckets_pm_address, sizeof(pm_address)<<metadata->global_depth);//复制旧的目录到临时数组
     memcpy(old_pm_bucket, catalog->buckets_virtual_address, sizeof(pm_bucket*)<<metadata->global_depth);
 
-    metadata->global_depth++;
+    metadata->global_depth++;//更新全局深度和目录大小
     metadata->catalog_size<<=1;
-    pmem_persist(metadata,sizeof(ehash_metadata));
+    pmem_persist(metadata,sizeof(ehash_metadata));//持久化元数据
 
-    std::string name = Env::get_path() + std::string("catalog");
+    std::string name = Env::get_path() + std::string("catalog");//重新映射一个更大的目录文件(用于存放buckets_pm_address)
     int is_pmem;
     size_t pm_address_len;
     catalog->buckets_pm_address = (pm_address*)pmem_map_file(name.c_str(), sizeof(pm_address)<<metadata->global_depth, PMEM_FILE_CREATE, 0666, &pm_address_len, &is_pmem);
     
-    catalog->buckets_virtual_address=new pm_bucket*[metadata->catalog_size];
+    catalog->buckets_virtual_address=new pm_bucket*[metadata->catalog_size];//申请一个更大的存放buckets_virtual_address的数组
 
     // for(int i=0;i<(1<<(metadata->global_depth-1));i++){
     //     catalog->buckets_pm_address[i]=old_pm_address[i];
@@ -354,12 +356,12 @@ void PmEHash::extendCatalog() {
     //     catalog->buckets_pm_address[i|(1<<(metadata->global_depth-1))]=old_pm_address[i];
     //     catalog->buckets_virtual_address[i|(1<<(metadata->global_depth-1))]=old_pm_bucket[i];     
     // }    
-    memcpy(catalog->buckets_pm_address, old_pm_address, sizeof(pm_address)<<(metadata->global_depth-1));
+    memcpy(catalog->buckets_pm_address, old_pm_address, sizeof(pm_address)<<(metadata->global_depth-1));//将临时数组拷贝到新的存放目录项的数组 新数组前一半和后一半都拷贝一份旧数组 
     memcpy(catalog->buckets_pm_address+(1<<(metadata->global_depth-1)), old_pm_address, sizeof(pm_address)<<(metadata->global_depth-1));
     memcpy(catalog->buckets_virtual_address, old_pm_bucket, sizeof(pm_bucket*)<<(metadata->global_depth-1));
     memcpy(catalog->buckets_virtual_address+(1<<(metadata->global_depth-1)), old_pm_bucket, sizeof(pm_bucket*)<<(metadata->global_depth-1));
 
-    delete [] old_pm_address;
+    delete [] old_pm_address;//释放临时数组的空间
     delete [] old_pm_bucket;
 
     //需要持久化目录        
@@ -373,18 +375,18 @@ void PmEHash::extendCatalog() {
  * @return: 新槽位的虚拟地址
  **/
 void* PmEHash::getFreeSlot(pm_address& new_address) {  
-    // pm_bucket* new_bucket = get_free_bucket(file_addrss);
-    // mreturn new_bucket;
-    if(free_list.empty()) allocNewPage();
-    pm_bucket* new_bucket = free_list.front();
+    if(free_list.empty()) allocNewPage();//free_list不存在空闲的桶 需要分配一个新页
+    
+    pm_bucket* new_bucket = free_list.front();//取出一个空闲的桶
     free_list.pop();
 
-    new_address=vAddr2pmAddr[new_bucket];
-    data_page* bucket_data_page=data_page_list[new_address.fileId-1];
-    bucket_data_page->bit_map[new_address.offset/sizeof(pm_bucket)]=1;
-    pmem_persist(bucket_data_page->bit_map,sizeof(bucket_data_page->bit_map));
+    new_address=vAddr2pmAddr[new_bucket];//得到对应的桶所在的实际地址
 
-    return new_bucket;
+    data_page* bucket_data_page=data_page_list[new_address.fileId-1];
+    bucket_data_page->bit_map[new_address.offset/sizeof(pm_bucket)]=1;//占用标记
+    pmem_persist(bucket_data_page->bit_map,sizeof(bucket_data_page->bit_map));//持久化占用标记
+
+    return new_bucket;//返回虚拟地址
 }
 
 /**./
@@ -393,10 +395,10 @@ void* PmEHash::getFreeSlot(pm_address& new_address) {
  * @return: 无返回值
  */
 void PmEHash::freeEmptyBucket(pm_bucket* bucket){
-    free_list.push(bucket);
-    pm_address bucket_address=vAddr2pmAddr[bucket];
+    free_list.push(bucket);//加入free_list
+    pm_address bucket_address=vAddr2pmAddr[bucket];//取得对应的物理地址
     data_page* bucket_data_page=data_page_list[bucket_address.fileId-1];
-    bucket_data_page->bit_map[bucket_address.offset/sizeof(pm_bucket)]=0;
+    bucket_data_page->bit_map[bucket_address.offset/sizeof(pm_bucket)]=0;//占用标记置为0
     pmem_persist(bucket_data_page->bit_map,sizeof(bucket_data_page->bit_map));
 }
 
@@ -406,19 +408,20 @@ void PmEHash::freeEmptyBucket(pm_bucket* bucket){
  * @return: NULL
  */
 void PmEHash::allocNewPage() {
-    metadata->max_file_id++;
-    pmem_persist(&(metadata->max_file_id),sizeof(metadata->max_file_id));
-    data_page* new_page=create_new_page(metadata->max_file_id);
-    data_page_list.push_back(new_page);
+    metadata->max_file_id++;//最大文件号自增1
+    pmem_persist(&(metadata->max_file_id),sizeof(metadata->max_file_id));//持久化最大文件号
+
+    data_page* new_page=create_new_page(metadata->max_file_id);//创建一个新页
+    data_page_list.push_back(new_page);//放入新页的指针到data_page_list
 
     pm_address new_address;
     new_address.fileId = metadata->max_file_id;
     for(int i = 0;i < DATA_PAGE_SLOT_NUM;i++){
-        free_list.push(&new_page->buckets[i]);
-        new_address.offset = i*sizeof(pm_bucket);
+        free_list.push(&new_page->buckets[i]);//新的物理桶的空间
+        new_address.offset = i*sizeof(pm_bucket);//计算对应data_page中的地址
 
-        vAddr2pmAddr[&new_page->buckets[i]] = new_address;
-        // pmAddr2vAddr[new_address] = &new_page->buckets[i];
+        vAddr2pmAddr[&new_page->buckets[i]] = new_address;//建立持久化内存与映射关系
+        // pmAddr2vAddr[new_address] = &new_page->buckets[i];//pmAddr2vAddr在数据库运行时没有用到 处于性能考虑而注释掉
     }
 }
 
@@ -535,15 +538,15 @@ void PmEHash::mapAllPage() {
     size_t pm_address_len;
 
     for(int i = 1;i <= metadata->max_file_id;i++){
-        name = Env::get_path() + std::to_string(i);
+        name = Env::get_path() + std::to_string(i);//读取第i个数据页文件
         size_t map_len;
-        data_page* old_page = (data_page*)pmem_map_file(name.c_str(), sizeof(data_page), PMEM_FILE_CREATE, 0666, &map_len, &is_pmem);
-        data_page_list.push_back(old_page);
+        data_page* old_page = (data_page*)pmem_map_file(name.c_str(), sizeof(data_page), PMEM_FILE_CREATE, 0666, &map_len, &is_pmem);//建立内存映射关系
+        data_page_list.push_back(old_page);//数据页指针放入data_page_list中
         old_address.fileId=i;
-        for(int j = 0;j < DATA_PAGE_SLOT_NUM;j++){
-            if(!old_page->bit_map[j]) free_list.push(&old_page->buckets[j]);
-            old_address.offset=j*sizeof(pm_bucket);
-            vAddr2pmAddr[&old_page->buckets[j]] = old_address;
+        for(int j = 0;j < DATA_PAGE_SLOT_NUM;j++){//遍历数据页的所有槽位
+            if(!old_page->bit_map[j]) free_list.push(&old_page->buckets[j]);//可用槽位 说明为一个空闲的桶 加入free_list
+            old_address.offset=j*sizeof(pm_bucket);//计算在data_page中地址偏移
+            vAddr2pmAddr[&old_page->buckets[j]] = old_address;//建立pm_address与pm_bucket之间的映射map
             pmAddr2vAddr[old_address] = &old_page->buckets[j];
         }
     }
@@ -553,11 +556,11 @@ void PmEHash::mapAllPage() {
     name =  Env::get_path() + std::string("catalog");
 
     catalog = new ehash_catalog;
-    catalog->buckets_pm_address = (pm_address*)pmem_map_file(name.c_str(), sizeof(pm_address)<<metadata->global_depth, PMEM_FILE_CREATE, 0666, &pm_address_len, &is_pmem);
+    catalog->buckets_pm_address = (pm_address*)pmem_map_file(name.c_str(), sizeof(pm_address)<<metadata->global_depth, PMEM_FILE_CREATE, 0666, &pm_address_len, &is_pmem);//建立到目录文件的映射
 
     catalog->buckets_virtual_address = new pm_bucket*[metadata->catalog_size];
     for(int i = 0; i < metadata->catalog_size ; i++){
-        catalog->buckets_virtual_address[i] = pmAddr2vAddr[catalog->buckets_pm_address[i]];
+        catalog->buckets_virtual_address[i] = pmAddr2vAddr[catalog->buckets_pm_address[i]];//通过前面的map快速取出对应的虚拟地址
     }
 
 }
