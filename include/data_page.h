@@ -2,8 +2,6 @@
 #include<stdint.h>
 #include<memory.h>
 #include<string>
-#include <semaphore.h>
-#include<thread>
 #ifndef DATA_PAGE
 #define DATA_PAGE
 
@@ -69,12 +67,8 @@ class Env {
 private:
     static string path;
     static bool hasInit;
-    static sem_t* semaphore;
-    static sem_t* semaphore_sync;
 public:
     static string get_path();
-    static sem_t* get_semaphore();
-    static sem_t* get_semaphore_sync();
 };
 
 data_page* create_new_page(uint32_t id);
@@ -86,14 +80,5 @@ bool delete_page(string name);
 
 pm_bucket* get_free_bucket(data_page* t_page);
 
-class PersistWorker {
-private:
-    static std::queue<std::pair<void*, uint64_t>> queue;
-    static void worker(volatile bool* exited);
-public:
-    static void post_persist(void* address, uint64_t size);
-    static void start(volatile bool* exited = nullptr);
-    static volatile bool exited;
-};
 
 #endif
