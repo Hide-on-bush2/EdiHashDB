@@ -489,3 +489,56 @@ void PmEHash::mapAllPage() {
 ![CLDB2](./images/CLDB2.png)
 
 可以从上面的截图中看出，命令行数据库功能正常，符合要求。
+
+## 多线程实现实验
+我们尝试了利用多线程实现数据的持久化，由于每次操作后均需要持久化数据，该操作可能会造成较大消耗，因此我们尝试多线程方案。
+
+对于多线程方案，我们采取后台线程队列方式进行数据的持久化，当需要进行数据持久化时，向队列中投递任务，由另一个线程消费持久化队列进行处理。
+
+``` C++
+std::queue<std::pair<void*, uint64_t>> PersistWorker::queue = std::queue<std::pair<void*, uint64_t>>();
+
+void PersistWorker::worker(volatile bool* exited) {	
+    while (exited == nullptr || !(*exited)) {	
+        sem_wait(Env::get_semaphore());	
+        if (!queue.empty()) {	
+            auto& data = queue.front();	
+            pmem_persist(data.first, data.second);
+            queue.pop();
+        } else {	
+            sem_post(Env::get_semaphore_sync());	
+        }	
+    }	
+    sem_post(Env::get_semaphore_sync());	
+}
+```
+
+当需要持久化时，向队列中投递任务后释放信号量：
+``` C++
+queue.push(std::make_pair(address, size));	
+sem_post(Env::get_semaphore());
+```
+
+但是这样造成了一些问题：当需要释放数据进行 unmap 时，若后台持久化队列还没有完成时，可能会造成对已经释放的无效数据进行持久化导致段错误。
+
+因此，需要一个同步信号量，用于等待持久化队列消费完成后再进行销毁操作。
+
+``` C++
+sem_wait(Env::get_semaphore_sync());
+
+delete[] catalog->buckets_virtual_address;
+delete[] catalog->buckets_virtual_address;  
+......
+```
+
+最后的测试结果如下：
+
+多线程模式：
+![多线程](images/multi-thread.png)
+
+单线程模式：
+![单线程](images/single-thread.png)
+
+可以看到多线程反而降低了吞吐量。
+
+分析原因可以得出，频繁的信号量操作反而带来了更大的开销，以及线程之间的数据同步造成了更多的阻塞开销，因此最后仍然采用原有的单线程实现方案。
