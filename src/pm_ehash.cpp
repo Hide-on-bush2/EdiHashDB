@@ -187,12 +187,12 @@ pm_bucket* PmEHash::getFreeBucket(uint64_t key) {
 
     while (1){//对连续分裂的处理
         int bucketid = hashFunc(key);
-        pm_bucket* insert_bucket=catalog->buckets_virtual_address[bucketid];
+        pm_bucket* insert_bucket=catalog->buckets_virtual_address[bucketid];//获得虚拟地址
        
-        if (haveFreeKvSlot(insert_bucket))
+        if (haveFreeKvSlot(insert_bucket))//直到对当前插入的元素分到的桶有空闲槽位时返回
             return insert_bucket;
 
-        splitBucket(bucketid);
+        splitBucket(bucketid);//否则连续分裂桶
     }
 }
 
@@ -202,8 +202,8 @@ pm_bucket* PmEHash::getFreeBucket(uint64_t key) {
  * @return bool: 存在/不存在空闲KvSlot 
  */
 bool PmEHash::haveFreeKvSlot(pm_bucket* bucket) {
-    for (int i = 0; i < BUCKET_SLOT_NUM; i++) {
-        if (bucket->bitmap[i] == 0) return true;
+    for (int i = 0; i < BUCKET_SLOT_NUM; i++) {//遍历所有槽位
+        if (bucket->bitmap[i] == 0) return true;//存在空闲槽位
     }
 
     return false;
